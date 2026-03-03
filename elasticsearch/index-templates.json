@@ -1,0 +1,79 @@
+{
+  "index_patterns": ["shadow-comparisons-*"],
+  "order": 1,
+  "settings": {
+    "number_of_shards": 3,
+    "number_of_replicas": 1,
+    "refresh_interval": "5s",
+    "index.lifecycle.name": "shadow-comparisons-policy",
+    "analysis": {
+      "analyzer": {
+        "endpoint_analyzer": {
+          "type": "custom",
+          "tokenizer": "path_hierarchy"
+        }
+      }
+    }
+  },
+  "mappings": {
+    "properties": {
+      "request_id": { "type": "keyword" },
+      "tenant_id": { "type": "keyword" },
+      "timestamp": { "type": "date" },
+      "endpoint": {
+        "type": "text",
+        "analyzer": "endpoint_analyzer",
+        "fields": {
+          "keyword": { "type": "keyword" }
+        }
+      },
+      "method": { "type": "keyword" },
+      "production": {
+        "properties": {
+          "status_code": { "type": "integer" },
+          "response_time_ms": { "type": "long" },
+          "headers": { "type": "object", "enabled": false },
+          "body": { "type": "text", "index": false },
+          "body_hash": { "type": "keyword" }
+        }
+      },
+      "shadow": {
+        "properties": {
+          "status_code": { "type": "integer" },
+          "response_time_ms": { "type": "long" },
+          "headers": { "type": "object", "enabled": false },
+          "body": { "type": "text", "index": false },
+          "body_hash": { "type": "keyword" }
+        }
+      },
+      "comparison": {
+        "properties": {
+          "status_match": { "type": "boolean" },
+          "headers_match": { "type": "boolean" },
+          "body_match": { "type": "boolean" },
+          "structure_match": { "type": "boolean" },
+          "field_diffs": {
+            "type": "nested",
+            "properties": {
+              "path": { "type": "keyword" },
+              "prod_value": { "type": "text", "index": false },
+              "shadow_value": { "type": "text", "index": false },
+              "diff_type": { "type": "keyword" }
+            }
+          },
+          "latency_delta_ms": { "type": "long" },
+          "similarity_score": { "type": "float" },
+          "risk_score": { "type": "float" },
+          "severity": { "type": "keyword" },
+          "ai_explanation": { "type": "text" },
+          "ai_recommended_action": { "type": "keyword" },
+          "deterministic_pass": { "type": "boolean" },
+          "ai_compared": { "type": "boolean" }
+        }
+      },
+      "deployment_id": { "type": "keyword" },
+      "environment": { "type": "keyword" },
+      "tags": { "type": "keyword" }
+    }
+  }
+}

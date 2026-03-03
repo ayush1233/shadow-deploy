@@ -1,0 +1,329 @@
+openapi: 3.0.3
+info:
+  title: Shadow API Validation Platform
+  description: |
+    AI-powered shadow API validation platform that mirrors production traffic,
+    compares responses using deterministic + AI semantic comparison (Google Gemini),
+    and generates deployment risk scores.
+  version: 1.0.0
+  contact:
+    name: Shadow API Team
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:8083/api/v1
+    description: Local Development
+  - url: http://localhost:8080/dashboard-api
+    description: Via NGINX Proxy
+
+security:
+  - BearerAuth: []
+  - ApiKeyAuth: []
+
+paths:
+  # ── Authentication ──
+  /auth/login:
+    post:
+      tags: [Authentication]
+      summary: Login and receive JWT token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username: { type: string, example: admin }
+                password: { type: string, example: shadow-admin }
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token: { type: string }
+                  username: { type: string }
+                  tenant_id: { type: string }
+                  role: { type: string }
+                  expires_in: { type: integer }
+        '401':
+          description: Invalid credentials
+
+  # ── Deployments ──
+  /deployments/{id}/report:
+    get:
+      tags: [Deployments]
+      summary: Get deployment validation report
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Deployment report
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deployment_id: { type: string }
+                  risk_score: { type: number, format: float }
+                  total_requests: { type: integer }
+                  mismatches: { type: integer }
+                  mismatch_rate: { type: number }
+                  critical_count: { type: integer }
+                  approval_status: { type: string, enum: [PENDING, APPROVED, REJECTED] }
+                  safe_to_promote: { type: boolean }
+
+  /deployments/{id}/approve:
+    post:
+      tags: [Deployments]
+      summary: Approve deployment for promotion
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Deployment approved
+
+  /deployments/{id}/reject:
+    post:
+      tags: [Deployments]
+      summary: Reject deployment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: string }
+      responses:
+        '200':
+          description: Deployment rejected
+
+  # ── Comparisons ──
+  /comparisons/{requestId}:
+    get:
+      tags: [Comparisons]
+      summary: Get detailed comparison result
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Comparison detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComparisonResult'
+
+  /comparisons:
+    get:
+      tags: [Comparisons]
+      summary: List comparison results with filters
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, default: 0 }
+        - name: size
+          in: query
+          schema: { type: integer, default: 20 }
+        - name: endpoint
+          in: query
+          schema: { type: string }
+        - name: severity
+          in: query
+          schema: { type: string, enum: [none, low, medium, high, critical] }
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: Paginated comparison list
+
+  # ── Metrics ──
+  /metrics/summary:
+    get:
+      tags: [Metrics]
+      summary: Get metrics summary for dashboard
+      parameters:
+        - name: timeRange
+          in: query
+          schema: { type: string, default: "1h" }
+      responses:
+        '200':
+          description: Metrics summary
+
+  # ── Ingestion ──
+  /ingest/event:
+    post:
+      tags: [Ingestion]
+      summary: Ingest single traffic event (SDK/Plugin)
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrafficEvent'
+      responses:
+        '202':
+          description: Event accepted
+
+  /ingest/batch:
+    post:
+      tags: [Ingestion]
+      summary: Ingest batch of traffic events
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/TrafficEvent'
+      responses:
+        '202':
+          description: Batch accepted
+
+  # ── AI Comparison ──
+  /compare:
+    post:
+      tags: [AI Comparison]
+      summary: Request AI semantic comparison
+      servers:
+        - url: http://localhost:8000/api/v1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ComparisonRequest'
+      responses:
+        '200':
+          description: AI comparison result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AIComparisonResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+  schemas:
+    TrafficEvent:
+      type: object
+      required: [request_id, traffic_type, method, endpoint, response_status]
+      properties:
+        request_id: { type: string }
+        tenant_id: { type: string }
+        timestamp: { type: string, format: date-time }
+        traffic_type: { type: string, enum: [production, shadow] }
+        method: { type: string }
+        endpoint: { type: string }
+        request_headers: { type: object, additionalProperties: { type: string } }
+        request_body: { type: string }
+        response_status: { type: integer }
+        response_headers: { type: object, additionalProperties: { type: string } }
+        response_body: { type: string }
+        response_time_ms: { type: integer }
+        deployment_id: { type: string }
+        ingestion_mode: { type: string, enum: [reverse-proxy, sdk-java, sdk-node, gateway-plugin-kong] }
+
+    ComparisonResult:
+      type: object
+      properties:
+        request_id: { type: string }
+        tenant_id: { type: string }
+        timestamp: { type: string, format: date-time }
+        endpoint: { type: string }
+        method: { type: string }
+        production:
+          type: object
+          properties:
+            status_code: { type: integer }
+            response_time_ms: { type: integer }
+            body: { type: string }
+        shadow:
+          type: object
+          properties:
+            status_code: { type: integer }
+            response_time_ms: { type: integer }
+            body: { type: string }
+        comparison:
+          type: object
+          properties:
+            status_match: { type: boolean }
+            body_match: { type: boolean }
+            structure_match: { type: boolean }
+            latency_delta_ms: { type: integer }
+            similarity_score: { type: number }
+            risk_score: { type: number }
+            severity: { type: string, enum: [none, low, medium, high, critical] }
+            ai_explanation: { type: string }
+            recommended_action: { type: string }
+            field_diffs:
+              type: array
+              items:
+                $ref: '#/components/schemas/FieldDiff'
+
+    FieldDiff:
+      type: object
+      properties:
+        path: { type: string }
+        prod_value: { type: string }
+        shadow_value: { type: string }
+        diff_type: { type: string, enum: [ADDED, REMOVED, CHANGED, MOVED] }
+
+    ComparisonRequest:
+      type: object
+      required: [request_id, prod_body, shadow_body]
+      properties:
+        request_id: { type: string }
+        tenant_id: { type: string }
+        endpoint: { type: string }
+        prod_body: { type: string }
+        shadow_body: { type: string }
+        field_diffs: { type: array, items: { $ref: '#/components/schemas/FieldDiff' } }
+        status_match: { type: boolean }
+        latency_delta_ms: { type: integer }
+
+    AIComparisonResponse:
+      type: object
+      properties:
+        request_id: { type: string }
+        similarity_score: { type: number }
+        severity: { type: string }
+        risk_score: { type: number }
+        explanation: { type: string }
+        recommended_action: { type: string }
+        processing_time_ms: { type: number }

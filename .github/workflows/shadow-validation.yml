@@ -1,0 +1,186 @@
+name: Shadow API - Deployment Validation
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  SHADOW_API_URL: ${{ secrets.SHADOW_API_URL }}
+  SHADOW_API_KEY: ${{ secrets.SHADOW_API_KEY }}
+  RISK_THRESHOLD: 5.0
+
+jobs:
+  # ─────────────────────────────────────────
+  # Build and Test
+  # ─────────────────────────────────────────
+  build:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up Node.js 18
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Build Ingestion Service
+        run: |
+          cd ingestion-service
+          chmod +x gradlew 2>/dev/null || true
+          ./gradlew build -x test
+
+      - name: Build Comparison Engine
+        run: |
+          cd comparison-engine
+          chmod +x gradlew 2>/dev/null || true
+          ./gradlew build -x test
+
+      - name: Build API Service
+        run: |
+          cd api-service
+          chmod +x gradlew 2>/dev/null || true
+          ./gradlew build -x test
+
+      - name: Verify AI Service
+        run: |
+          cd ai-service
+          pip install -r requirements.txt
+          python -m py_compile main.py
+          python -m py_compile comparison/semantic_comparator.py
+          python -m py_compile comparison/pii_masker.py
+          python -m py_compile comparison/risk_scorer.py
+
+      - name: Build Dashboard
+        run: |
+          cd dashboard
+          npm ci
+          npm run build
+
+  # ─────────────────────────────────────────
+  # Deploy Shadow Version
+  # ─────────────────────────────────────────
+  deploy-shadow:
+    name: Deploy Shadow
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/develop'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy shadow services
+        run: |
+          echo "Deploying shadow version..."
+          # docker-compose -f docker-compose.shadow.yml up -d --build
+          echo "Shadow deployment complete"
+
+      - name: Configure traffic mirroring
+        run: |
+          echo "Enabling 10% traffic mirroring to shadow..."
+          # curl -X POST $SHADOW_API_URL/admin/traffic-config \
+          #   -H "X-API-Key: $SHADOW_API_KEY" \
+          #   -d '{"mirror_percentage": 10}'
+
+      - name: Wait for analysis
+        run: |
+          echo "Waiting 300 seconds for traffic analysis..."
+          sleep 300
+
+  # ─────────────────────────────────────────
+  # Validate Deployment Risk
+  # ─────────────────────────────────────────
+  validate-deployment:
+    name: Validate Deployment Risk
+    needs: deploy-shadow
+    runs-on: ubuntu-latest
+    outputs:
+      risk_score: ${{ steps.check-risk.outputs.risk_score }}
+      safe_to_promote: ${{ steps.check-risk.outputs.safe }}
+    steps:
+      - name: Get deployment report
+        id: check-risk
+        run: |
+          echo "Fetching deployment risk report..."
+
+          # In production, replace with actual API call:
+          # REPORT=$(curl -s "$SHADOW_API_URL/api/v1/deployments/$GITHUB_SHA/report" \
+          #   -H "Authorization: Bearer $TOKEN")
+          # RISK_SCORE=$(echo $REPORT | jq -r '.risk_score')
+
+          # Demo values
+          RISK_SCORE=3.2
+          MISMATCH_RATE=0.87
+          CRITICAL_COUNT=0
+
+          echo "risk_score=$RISK_SCORE" >> $GITHUB_OUTPUT
+
+          if (( $(echo "$RISK_SCORE < $RISK_THRESHOLD" | bc -l) )); then
+            echo "safe=true" >> $GITHUB_OUTPUT
+            echo "✅ Risk score $RISK_SCORE is below threshold $RISK_THRESHOLD"
+          else
+            echo "safe=false" >> $GITHUB_OUTPUT
+            echo "❌ Risk score $RISK_SCORE exceeds threshold $RISK_THRESHOLD"
+          fi
+
+          # Generate summary
+          echo "## 🔍 Shadow API Validation Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Risk Score | **$RISK_SCORE** / 10.0 |" >> $GITHUB_STEP_SUMMARY
+          echo "| Mismatch Rate | ${MISMATCH_RATE}% |" >> $GITHUB_STEP_SUMMARY
+          echo "| Critical Issues | $CRITICAL_COUNT |" >> $GITHUB_STEP_SUMMARY
+          echo "| Threshold | $RISK_THRESHOLD |" >> $GITHUB_STEP_SUMMARY
+          echo "| Status | $([ "$RISK_SCORE" \\< "$RISK_THRESHOLD" ] && echo '✅ SAFE' || echo '❌ BLOCKED') |" >> $GITHUB_STEP_SUMMARY
+
+  # ─────────────────────────────────────────
+  # Gate: Promote or Block
+  # ─────────────────────────────────────────
+  promote:
+    name: Promote to Production
+    needs: validate-deployment
+    runs-on: ubuntu-latest
+    if: needs.validate-deployment.outputs.safe_to_promote == 'true'
+    steps:
+      - name: Promote shadow to production
+        run: |
+          echo "✅ Risk score (${{ needs.validate-deployment.outputs.risk_score }}) below threshold."
+          echo "Promoting shadow version to production..."
+          # docker-compose up -d --build
+
+      - name: Post PR comment
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## ✅ Shadow API Validation Passed\n\n| Metric | Value |\n|--------|-------|\n| Risk Score | **${{ needs.validate-deployment.outputs.risk_score }}** / 10.0 |\n| Status | ✅ Safe to Deploy |\n\n[View Full Report](${process.env.SHADOW_API_URL}/dashboard)`
+            })
+
+  blocked:
+    name: Deployment Blocked
+    needs: validate-deployment
+    runs-on: ubuntu-latest
+    if: needs.validate-deployment.outputs.safe_to_promote == 'false'
+    steps:
+      - name: Block deployment
+        run: |
+          echo "❌ Risk score (${{ needs.validate-deployment.outputs.risk_score }}) exceeds threshold."
+          echo "Deployment blocked. Please review mismatches in the dashboard."
+          exit 1

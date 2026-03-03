@@ -1,0 +1,64 @@
+server:
+  port: 8083
+  shutdown: graceful
+
+spring:
+  application:
+    name: api-service
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
+    consumer:
+      group-id: api-service-group
+      auto-offset-reset: latest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "com.shadow.platform.*"
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+  datasource:
+    url: jdbc:postgresql://db.likjiuylgndoedpkzxhb.supabase.co:5432/postgres
+    username: postgres
+    password: ${SUPABASE_DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+
+shadow:
+  jwt:
+    secret: ${JWT_SECRET:shadow-api-jwt-secret-change-in-production-min-256-bits-key}
+    expiration-ms: 86400000
+  kafka:
+    topics:
+      comparison-results: comparison-results
+      alerts: alerts
+  deployment:
+    risk-threshold: 5.0
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    export:
+      prometheus:
+        enabled: true
+
+logging:
+  level:
+    com.shadow.platform: DEBUG

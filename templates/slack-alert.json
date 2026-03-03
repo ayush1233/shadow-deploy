@@ -1,0 +1,82 @@
+{
+    "blocks": [
+        {
+            "type": "header",
+            "text": {
+                "type": "plain_text",
+                "text": "🔴 Shadow API — Critical Mismatch Alert",
+                "emoji": true
+            }
+        },
+        {
+            "type": "section",
+            "fields": [
+                {
+                    "type": "mrkdwn",
+                    "text": "*Severity:*\n🔴 CRITICAL"
+                },
+                {
+                    "type": "mrkdwn",
+                    "text": "*Risk Score:*\n9.2 / 10.0"
+                },
+                {
+                    "type": "mrkdwn",
+                    "text": "*Endpoint:*\n`PUT /api/users/456`"
+                },
+                {
+                    "type": "mrkdwn",
+                    "text": "*Status:*\n200 → 500"
+                },
+                {
+                    "type": "mrkdwn",
+                    "text": "*Similarity:*\n15%"
+                },
+                {
+                    "type": "mrkdwn",
+                    "text": "*Latency Δ:*\n+230ms"
+                }
+            ]
+        },
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": "*AI Analysis:*\nShadow version returns HTTP 500 Internal Server Error instead of 200. This indicates a critical regression — the shadow endpoint crashes when processing PUT requests to `/api/users/{id}`. Immediate investigation required."
+            }
+        },
+        {
+            "type": "divider"
+        },
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": "*Deployment:* `build-abc123` | *Tenant:* `default`"
+            }
+        },
+        {
+            "type": "actions",
+            "elements": [
+                {
+                    "type": "button",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "🔍 View Comparison",
+                        "emoji": true
+                    },
+                    "url": "http://localhost:3000/comparison/req-j0k1l2",
+                    "style": "danger"
+                },
+                {
+                    "type": "button",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "📊 Dashboard",
+                        "emoji": true
+                    },
+                    "url": "http://localhost:3000/"
+                }
+            ]
+        }
+    ]
+}

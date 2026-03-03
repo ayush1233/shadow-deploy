@@ -1,0 +1,89 @@
+server:
+  port: 8082
+  shutdown: graceful
+
+spring:
+  application:
+    name: comparison-engine
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
+    consumer:
+      group-id: comparison-engine-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "com.shadow.platform.*"
+        max.poll.records: 100
+        max.poll.interval.ms: 300000
+        session.timeout.ms: 30000
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 5000
+
+  datasource:
+    url: jdbc:postgresql://db.likjiuylgndoedpkzxhb.supabase.co:5432/postgres
+    username: postgres
+    password: ${SUPABASE_DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+
+shadow:
+  kafka:
+    topics:
+      prod-traffic: prod-traffic
+      shadow-traffic: shadow-traffic
+      comparison-results: comparison-results
+      alerts: alerts
+  correlation:
+    ttl-seconds: 120
+    window-ms: 60000
+  ai:
+    service-url: ${AI_SERVICE_URL:http://localhost:8000}
+    timeout-ms: 30000
+    enabled: true
+  comparison:
+    ignore-fields:
+      - timestamp
+      - created_at
+      - updated_at
+      - request_id
+      - trace_id
+    ignore-header-keys:
+      - date
+      - x-request-id
+      - x-trace-id
+      - server
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    export:
+      prometheus:
+        enabled: true
+
+logging:
+  level:
+    com.shadow.platform: DEBUG
+    org.springframework.kafka: WARN

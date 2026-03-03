@@ -1,0 +1,13 @@
+{
+    "name": "@shadow-api/node-sdk",
+    "version": "1.0.0",
+    "description": "Shadow API Validation Platform — Node.js SDK",
+    "main": "index.js",
+    "keywords": [
+        "shadow-api",
+        "api-validation",
+        "middleware",
+        "express"
+    ],
+    "license": "MIT"
+}
