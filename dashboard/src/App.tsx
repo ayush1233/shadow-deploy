@@ -1,15 +1,39 @@
+import { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, NavLink, Navigate, useLocation } from 'react-router-dom';
+import { supabase } from './services/supabase';
 import OverviewPage from './pages/OverviewPage';
 import EndpointAnalysisPage from './pages/EndpointAnalysisPage';
 import ComparisonDetailPage from './pages/ComparisonDetailPage';
 import LoginPage from './pages/LoginPage';
 
-// Protected Route Wrapper
+// Protected Route Wrapper — checks Supabase session
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-    const token = localStorage.getItem('shadow_token');
+    const [loading, setLoading] = useState(true);
+    const [authenticated, setAuthenticated] = useState(false);
     const location = useLocation();
 
-    if (!token) {
+    useEffect(() => {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            setAuthenticated(!!session);
+            setLoading(false);
+        });
+
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            setAuthenticated(!!session);
+        });
+
+        return () => subscription.unsubscribe();
+    }, []);
+
+    if (loading) {
+        return (
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: 'var(--bg-primary)' }}>
+                <div style={{ color: 'var(--text-secondary)' }}>Loading...</div>
+            </div>
+        );
+    }
+
+    if (!authenticated) {
         return <Navigate to="/login" state={{ from: location }} replace />;
     }
 
@@ -17,6 +41,11 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 };
 
 function ProtectedLayout() {
+    const handleSignOut = async () => {
+        await supabase.auth.signOut();
+        window.location.href = '/login';
+    };
+
     return (
         <div className="app-container">
             {/* Sidebar */}
@@ -38,7 +67,7 @@ function ProtectedLayout() {
                         <span className="nav-icon">🔍</span> Endpoint Analysis
                     </NavLink>
                     <div style={{ marginTop: 'auto', borderTop: '1px solid var(--border-color)', paddingTop: 12 }}>
-                        <div className="nav-link" style={{ cursor: 'pointer', opacity: 0.8 }} onClick={() => { localStorage.removeItem('shadow_token'); window.location.href = '/login'; }}>
+                        <div className="nav-link" style={{ cursor: 'pointer', opacity: 0.8 }} onClick={handleSignOut}>
                             <span className="nav-icon">🚪</span> Sign Out
                         </div>
                     </div>

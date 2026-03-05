@@ -31,9 +31,6 @@ export default function EndpointAnalysisPage() {
                 }
             } catch (err: any) {
                 console.error("Failed to fetch comparisons", err);
-                if (err.response?.status === 401) {
-                    navigate('/login');
-                }
                 if (isMounted) setIsLoaded(true);
             }
         };

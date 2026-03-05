@@ -1,67 +1,171 @@
-import axios from 'axios';
-
-const API_BASE = import.meta.env.VITE_API_URL || '/api/v1';
-
-const api = axios.create({
-    baseURL: API_BASE,
-    timeout: 30000,
-    headers: { 'Content-Type': 'application/json' },
-});
-
-// Intercept and add JWT token
-api.interceptors.request.use(config => {
-    const token = localStorage.getItem('shadow_token');
-    if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-});
-
-// Response error handling
-api.interceptors.response.use(
-    response => response,
-    error => {
-        if (error.response?.status === 401) {
-            localStorage.removeItem('shadow_token');
-            window.location.href = '/login';
-        }
-        return Promise.reject(error);
-    }
-);
+import { supabase } from './supabase';
 
 // ── Auth ──
-export const login = (username: string, password: string) =>
-    api.post('/auth/login', { username, password });
+export const login = async (email: string, password: string) => {
+    const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+    });
+    if (error) throw error;
+    return { data: { token: data.session?.access_token, user: data.user } };
+};
 
-// ── Metrics ──
-export const getMetricsSummary = (timeRange = '1h') =>
-    api.get(`/metrics/summary?timeRange=${timeRange}`);
+export const signUp = async (email: string, password: string) => {
+    const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+    });
+    if (error) throw error;
+    return data;
+};
 
-// ── Deployments ──
-export const getDeploymentReport = (id: string) =>
-    api.get(`/deployments/${id}/report`);
+export const signOut = async () => {
+    await supabase.auth.signOut();
+};
 
-export const approveDeployment = (id: string) =>
-    api.post(`/deployments/${id}/approve`);
+export const getSession = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    return session;
+};
 
-export const rejectDeployment = (id: string, reason: string) =>
-    api.post(`/deployments/${id}/reject`, { reason });
+// ── Metrics (computed from comparisons table) ──
+export const getMetricsSummary = async () => {
+    const { data: comparisons, error } = await supabase
+        .from('comparisons')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    const all = comparisons || [];
+    const total = all.length;
+    const mismatches = all.filter(c => !c.body_match).length;
+    const mismatchRate = total > 0 ? ((mismatches / total) * 100).toFixed(1) : '0.0';
+
+    // Severity breakdown
+    const severity = { none: 0, low: 0, medium: 0, high: 0, critical: 0 };
+    all.forEach(c => { severity[c.severity as keyof typeof severity] = (severity[c.severity as keyof typeof severity] || 0) + 1; });
+
+    // Top endpoints by mismatch count
+    const endpointMap: Record<string, { requests: number; mismatches: number }> = {};
+    all.forEach(c => {
+        if (!endpointMap[c.endpoint]) endpointMap[c.endpoint] = { requests: 0, mismatches: 0 };
+        endpointMap[c.endpoint].requests++;
+        if (!c.body_match) endpointMap[c.endpoint].mismatches++;
+    });
+
+    // Latency metrics
+    const deltas = all.map(c => c.latency_delta_ms).sort((a, b) => a - b);
+    const p50 = deltas.length > 0 ? deltas[Math.floor(deltas.length * 0.5)] : 0;
+    const p95 = deltas.length > 0 ? deltas[Math.floor(deltas.length * 0.95)] : 0;
+    const p99 = deltas.length > 0 ? deltas[Math.floor(deltas.length * 0.99)] : 0;
+
+    // Risk score: average of all risk scores
+    const avgRisk = total > 0 ? all.reduce((sum, c) => sum + Number(c.risk_score), 0) / total : 0;
+
+    return {
+        data: {
+            overview: {
+                total_requests: total,
+                total_comparisons: total,
+                total_mismatches: mismatches,
+                mismatch_rate_percent: mismatchRate,
+                deployment_risk_score: Math.min(avgRisk, 10),
+            },
+            severity_breakdown: severity,
+            top_endpoints: endpointMap,
+            latency: {
+                p50_delta_ms: p50,
+                p95_delta_ms: p95,
+                p99_delta_ms: p99,
+            },
+        },
+    };
+};
 
 // ── Comparisons ──
-export const getComparison = (requestId: string) =>
-    api.get(`/comparisons/${requestId}`);
-
-export const listComparisons = (params: {
+export const listComparisons = async (params: {
     page?: number;
     size?: number;
     endpoint?: string;
     severity?: string;
-    from?: string;
-    to?: string;
-}) => api.get('/comparisons', { params });
+}) => {
+    let query = supabase
+        .from('comparisons')
+        .select('*', { count: 'exact' })
+        .order('created_at', { ascending: false });
 
-// ── AI Configurator ──
+    if (params.endpoint) {
+        query = query.ilike('endpoint', `%${params.endpoint}%`);
+    }
+    if (params.severity && params.severity !== 'all') {
+        query = query.eq('severity', params.severity);
+    }
+
+    const size = params.size || 20;
+    const page = params.page || 0;
+    query = query.range(page * size, (page + 1) * size - 1);
+
+    const { data, error, count } = await query;
+    if (error) throw error;
+
+    return {
+        data: {
+            data: data || [],
+            page,
+            size,
+            total: count || 0,
+            total_pages: Math.ceil((count || 0) / size),
+        },
+    };
+};
+
+export const getComparison = async (requestId: string) => {
+    const { data, error } = await supabase
+        .from('comparisons')
+        .select('*')
+        .eq('request_id', requestId)
+        .single();
+
+    if (error) throw error;
+
+    // Transform to match the expected format from the old API
+    return {
+        data: {
+            request_id: data.request_id,
+            tenant_id: data.tenant_id,
+            timestamp: data.created_at,
+            endpoint: data.endpoint,
+            method: data.method,
+            production: {
+                status_code: data.prod_status_code,
+                response_time_ms: data.prod_response_time_ms,
+                body: typeof data.prod_body === 'string' ? data.prod_body : JSON.stringify(data.prod_body, null, 2),
+            },
+            shadow: {
+                status_code: data.shadow_status_code,
+                response_time_ms: data.shadow_response_time_ms,
+                body: typeof data.shadow_body === 'string' ? data.shadow_body : JSON.stringify(data.shadow_body, null, 2),
+            },
+            comparison: {
+                status_match: data.status_match,
+                body_match: data.body_match,
+                structure_match: data.structure_match,
+                latency_delta_ms: data.latency_delta_ms,
+                similarity_score: Number(data.similarity_score),
+                risk_score: Number(data.risk_score),
+                severity: data.severity,
+                deterministic_pass: data.deterministic_pass,
+                ai_compared: data.ai_compared,
+                ai_explanation: data.ai_explanation,
+                recommended_action: data.recommended_action,
+                field_diffs: data.field_diffs || [],
+            },
+        },
+    };
+};
+
+// ── AI Configurator (still goes through the local proxy) ──
+import axios from 'axios';
 export const configureProxy = (instruction: string) =>
     axios.post('/ai-api/configure-proxy', { instruction });
-
-export default api;

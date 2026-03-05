@@ -1,25 +1,45 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { login } from '../services/api';
+import { supabase } from '../services/supabase';
 
 export default function LoginPage() {
     const navigate = useNavigate();
-    const [username, setUsername] = useState('admin');
-    const [password, setPassword] = useState('shadow-admin');
-    const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [status, setStatus] = useState<'idle' | 'loading' | 'error' | 'signup'>('idle');
     const [errorMsg, setErrorMsg] = useState('');
+    const [successMsg, setSuccessMsg] = useState('');
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setStatus('loading');
+        setErrorMsg('');
         try {
-            const { data } = await login(username, password);
-            localStorage.setItem('shadow_token', data.token);
+            const { error } = await supabase.auth.signInWithPassword({ email, password });
+            if (error) throw error;
             navigate('/');
         } catch (error: any) {
             setStatus('error');
-            setErrorMsg(error.response?.data?.error || 'Failed to login');
-            localStorage.removeItem('shadow_token');
+            setErrorMsg(error.message || 'Failed to login');
+        }
+    };
+
+    const handleSignUp = async () => {
+        if (!email || !password) {
+            setErrorMsg('Enter email and password first');
+            setStatus('error');
+            return;
+        }
+        setStatus('loading');
+        setErrorMsg('');
+        try {
+            const { error } = await supabase.auth.signUp({ email, password });
+            if (error) throw error;
+            setStatus('signup');
+            setSuccessMsg('Account created! Check your email to confirm, then sign in.');
+        } catch (error: any) {
+            setStatus('error');
+            setErrorMsg(error.message || 'Sign up failed');
         }
     };
 
@@ -46,11 +66,12 @@ export default function LoginPage() {
 
                 <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                     <div>
-                        <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 8 }}>USERNAME</label>
+                        <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 8 }}>EMAIL</label>
                         <input
-                            type="text"
-                            value={username}
-                            onChange={e => setUsername(e.target.value)}
+                            type="email"
+                            value={email}
+                            onChange={e => setEmail(e.target.value)}
+                            placeholder="you@example.com"
                             required
                             disabled={status === 'loading'}
                             style={{
@@ -75,6 +96,7 @@ export default function LoginPage() {
                             type="password"
                             value={password}
                             onChange={e => setPassword(e.target.value)}
+                            placeholder="••••••••"
                             required
                             disabled={status === 'loading'}
                             style={{
@@ -100,6 +122,12 @@ export default function LoginPage() {
                         </div>
                     )}
 
+                    {status === 'signup' && (
+                        <div style={{ color: 'var(--accent-green)', fontSize: 13, textAlign: 'center', background: 'rgba(16, 185, 129, 0.1)', padding: '8px', borderRadius: 6, border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+                            {successMsg}
+                        </div>
+                    )}
+
                     <button
                         type="submit"
                         disabled={status === 'loading'}
@@ -115,6 +143,25 @@ export default function LoginPage() {
                         }}
                     >
                         {status === 'loading' ? 'Authenticating...' : 'Sign In'}
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={handleSignUp}
+                        disabled={status === 'loading'}
+                        style={{
+                            width: '100%',
+                            padding: '10px',
+                            background: 'transparent',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: 8,
+                            color: 'var(--text-secondary)',
+                            fontSize: 13,
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease'
+                        }}
+                    >
+                        Create Account
                     </button>
                 </form>
             </div>

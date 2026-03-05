@@ -23,9 +23,7 @@ export default function ComparisonDetailPage() {
                 }
             } catch (err: any) {
                 console.error("Failed to fetch comparison detail", err);
-                if (err.response?.status === 401) {
-                    navigate('/login');
-                } else if (isMounted) {
+                if (isMounted) {
                     setError('Failed to load comparison data. It may not exist.');
                     setIsLoaded(true);
                 }

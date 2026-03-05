@@ -40,9 +40,7 @@ export default function OverviewPage() {
                 setIsLoaded(true);
             } catch (err: any) {
                 console.error("Failed to fetch metrics", err);
-                if (err.response?.status === 401) {
-                    navigate('/login');
-                }
+                setIsLoaded(true); // show empty state instead of infinite loading
             }
         };
         fetchMetrics();
