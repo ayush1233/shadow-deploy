@@ -37,6 +37,11 @@ jobs:
         with:
           node-version: '18'
 
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.5'
+
       - name: Build Ingestion Service
         run: |
           cd ingestion-service
