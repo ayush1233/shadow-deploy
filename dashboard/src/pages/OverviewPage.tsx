@@ -86,11 +86,11 @@ export default function OverviewPage() {
         total: data.requests
     })).sort((a, b) => b.mismatches - a.mismatches);
 
-    // Dummy time-series data since the backend /summary doesn't return time-series yet
-    const latencyData = Array.from({ length: 24 }, (_, i) => ({
-        time: `${i.toString().padStart(2, '0')}:00`,
-        prod: 35 + Math.random() * 20,
-        shadow: 37 + Math.random() * 25
+    // Build latency comparison from real comparison data
+    const latencyData = Object.entries(metrics.top_endpoints).map(([endpoint, data]: any) => ({
+        endpoint: endpoint.length > 20 ? '...' + endpoint.slice(-18) : endpoint,
+        prod: Math.round(data.avg_prod_latency || 0),
+        shadow: Math.round(data.avg_shadow_latency || 0),
     }));
 
     return (
@@ -170,7 +170,7 @@ export default function OverviewPage() {
 
                 <div className="chart-card">
                     <div className="card-header">
-                        <span className="card-title">Latency Comparison (mocked stream)</span>
+                        <span className="card-title">Latency Comparison</span>
                     </div>
                     <ResponsiveContainer width="100%" height={250}>
                         <AreaChart data={latencyData}>
@@ -185,7 +185,7 @@ export default function OverviewPage() {
                                 </linearGradient>
                             </defs>
                             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                            <XAxis dataKey="time" stroke="#71717a" fontSize={10} tickLine={false} axisLine={false} />
+                            <XAxis dataKey="endpoint" stroke="#71717a" fontSize={10} tickLine={false} axisLine={false} />
                             <YAxis stroke="#71717a" fontSize={10} unit="ms" tickLine={false} axisLine={false} />
                             <Tooltip
                                 contentStyle={{ background: '#0a0a0a', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, fontSize: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}

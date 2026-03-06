@@ -86,6 +86,9 @@ public class ComparisonResult {
     @JsonProperty("recommended_action")
     private String recommendedAction;
 
+    @JsonProperty("explanation")
+    private AIExplanation explanation;
+
     // ── Metadata ──
     @JsonProperty("environment")
     private String environment;
@@ -294,6 +297,14 @@ public class ComparisonResult {
         this.recommendedAction = a;
     }
 
+    public AIExplanation getExplanation() {
+        return explanation;
+    }
+
+    public void setExplanation(AIExplanation explanation) {
+        this.explanation = explanation;
+    }
+
     public String getEnvironment() {
         return environment;
     }
@@ -310,7 +321,63 @@ public class ComparisonResult {
         this.tags = t;
     }
 
-    // ── Inner class ──
+    // ── Inner classes ──
+
+    public static class AIExplanation {
+        @JsonProperty("summary")
+        private String summary;
+
+        @JsonProperty("details")
+        private String details;
+
+        @JsonProperty("impact")
+        private String impact;
+
+        @JsonProperty("confidence")
+        private Double confidence;
+
+        public AIExplanation() {
+        }
+
+        public AIExplanation(String summary, String details, String impact, Double confidence) {
+            this.summary = summary;
+            this.details = details;
+            this.impact = impact;
+            this.confidence = confidence;
+        }
+
+        public String getSummary() {
+            return summary;
+        }
+
+        public void setSummary(String summary) {
+            this.summary = summary;
+        }
+
+        public String getDetails() {
+            return details;
+        }
+
+        public void setDetails(String details) {
+            this.details = details;
+        }
+
+        public String getImpact() {
+            return impact;
+        }
+
+        public void setImpact(String impact) {
+            this.impact = impact;
+        }
+
+        public Double getConfidence() {
+            return confidence;
+        }
+
+        public void setConfidence(Double confidence) {
+            this.confidence = confidence;
+        }
+    }
 
     public static class FieldDiff {
         @JsonProperty("path")

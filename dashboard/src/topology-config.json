@@ -1,0 +1,27 @@
+{
+  "_generatedAt": "2026-03-03T20:17:21.515Z",
+  "_source": "Extracted from nginx/nginx.conf and docker-compose.yml",
+  "prodPort": 3000,
+  "shadowPort": 4000,
+  "proxyPort": 8888,
+  "kafkaPort": 9092,
+  "zookeeperPort": 2181,
+  "ingestionPort": 8081,
+  "comparisonPort": 8082,
+  "apiServicePort": 8083,
+  "aiServicePort": 8005,
+  "dashboardPort": 3002,
+  "services": [
+    "zookeeper",
+    "kafka",
+    "redis",
+    "prometheus",
+    "grafana",
+    "nginx-proxy",
+    "ingestion-service",
+    "comparison-engine",
+    "api-service",
+    "ai-service",
+    "dashboard"
+  ]
+}

@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.Map;
 
 @Entity
-@Table(name = "comparison_results")
+@Table(name = "comparisons")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -101,6 +101,18 @@ public class ComparisonResultEntity {
     @Column(name = "recommended_action", columnDefinition = "text")
     private String recommendedAction;
 
+    @Column(name = "explanation_summary", columnDefinition = "text")
+    private String explanationSummary;
+
+    @Column(name = "explanation_details", columnDefinition = "text")
+    private String explanationDetails;
+
+    @Column(name = "explanation_impact", columnDefinition = "text")
+    private String explanationImpact;
+
+    @Column(name = "explanation_confidence")
+    private Double explanationConfidence;
+
     // ── Metadata ──
     @Column(name = "environment")
     private String environment;
@@ -108,12 +120,12 @@ public class ComparisonResultEntity {
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "tags", columnDefinition = "jsonb")
     private List<String> tags;
-    
+
     // Store exact bodies for frontend comparison view
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "prod_body", columnDefinition = "jsonb")
     private Map<String, Object> prodBody;
-    
+
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "shadow_body", columnDefinition = "jsonb")
     private Map<String, Object> shadowBody;

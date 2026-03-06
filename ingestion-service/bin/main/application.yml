@@ -1,0 +1,63 @@
+server:
+  port: 8081
+  shutdown: graceful
+
+spring:
+  application:
+    name: ingestion-service
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      retries: 3
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
+        linger.ms: 10
+        batch.size: 32768
+        compression.type: lz4
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 5000
+
+shadow:
+  kafka:
+    topics:
+      prod-traffic: prod-traffic
+      shadow-traffic: shadow-traffic
+  security:
+    api-keys:
+      - tenant-id: default
+        key: sk-shadow-default-key-change-me
+      - tenant-id: demo
+        key: sk-shadow-demo-key-change-me
+  rate-limit:
+    requests-per-second: 1000
+    burst-size: 2000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    export:
+      prometheus:
+        enabled: true
+
+logging:
+  level:
+    com.shadow.platform: DEBUG
+    org.springframework.kafka: WARN
+  pattern:
+    console: "%d{ISO8601} [%thread] %-5level %logger{36} - %msg%n"

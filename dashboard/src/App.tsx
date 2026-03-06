@@ -4,6 +4,7 @@ import { supabase } from './services/supabase';
 import OverviewPage from './pages/OverviewPage';
 import EndpointAnalysisPage from './pages/EndpointAnalysisPage';
 import ComparisonDetailPage from './pages/ComparisonDetailPage';
+import TopologyPage from './pages/TopologyPage';
 import LoginPage from './pages/LoginPage';
 
 // Protected Route Wrapper — checks Supabase session
@@ -66,6 +67,9 @@ function ProtectedLayout() {
                     <NavLink to="/endpoints" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
                         <span className="nav-icon">🔍</span> Endpoint Analysis
                     </NavLink>
+                    <NavLink to="/topology" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+                        <span className="nav-icon">🔀</span> Network Topology
+                    </NavLink>
                     <div style={{ marginTop: 'auto', borderTop: '1px solid var(--border-color)', paddingTop: 12 }}>
                         <div className="nav-link" style={{ cursor: 'pointer', opacity: 0.8 }} onClick={handleSignOut}>
                             <span className="nav-icon">🚪</span> Sign Out
@@ -79,6 +83,7 @@ function ProtectedLayout() {
                 <Routes>
                     <Route path="/" element={<OverviewPage />} />
                     <Route path="/endpoints" element={<EndpointAnalysisPage />} />
+                    <Route path="/topology" element={<TopologyPage />} />
                     <Route path="/comparison/:requestId" element={<ComparisonDetailPage />} />
                 </Routes>
             </main>

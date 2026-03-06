@@ -46,10 +46,9 @@ public class IngestionController {
 
         return ResponseEntity.status(HttpStatus.ACCEPTED)
                 .body(Map.of(
-                    "status", "accepted",
-                    "request_id", event.getRequestId(),
-                    "timestamp", Instant.now().toString()
-                ));
+                        "status", "accepted",
+                        "request_id", event.getRequestId(),
+                        "timestamp", Instant.now().toString()));
     }
 
     /**
@@ -71,21 +70,22 @@ public class IngestionController {
 
         return ResponseEntity.status(HttpStatus.ACCEPTED)
                 .body(Map.of(
-                    "status", "accepted",
-                    "count", count,
-                    "timestamp", Instant.now().toString()
-                ));
+                        "status", "accepted",
+                        "count", count,
+                        "timestamp", Instant.now().toString()));
     }
 
     /**
      * Production traffic ingestion (from NGINX mirror).
      */
-    @PostMapping("/production")
+    @RequestMapping("/production")
     public ResponseEntity<Map<String, Object>> ingestProduction(
             @RequestBody(required = false) String body,
-            @RequestHeader(value = "X-Request-ID", required = false) String requestId,
-            @RequestHeader(value = "X-Tenant-ID", required = false) String tenantId,
+            @RequestHeader(value = "x-request-id", required = false) String requestId,
+            @RequestHeader(value = "x-tenant-id", required = false) String tenantId,
             @RequestHeader Map<String, String> headers) {
+
+        log.info("Production Traffic Incoming - x-request-id: {}, Headers: {}", requestId, headers);
 
         TrafficEvent event = buildProxyEvent(requestId, tenantId, "production", body, headers);
         kafkaProducerService.publishTrafficEvent(event);
@@ -97,12 +97,14 @@ public class IngestionController {
     /**
      * Shadow traffic ingestion (from NGINX mirror).
      */
-    @PostMapping("/shadow")
+    @RequestMapping("/shadow")
     public ResponseEntity<Map<String, Object>> ingestShadow(
             @RequestBody(required = false) String body,
-            @RequestHeader(value = "X-Request-ID", required = false) String requestId,
-            @RequestHeader(value = "X-Tenant-ID", required = false) String tenantId,
+            @RequestHeader(value = "x-request-id", required = false) String requestId,
+            @RequestHeader(value = "x-tenant-id", required = false) String tenantId,
             @RequestHeader Map<String, String> headers) {
+
+        log.info("Shadow Traffic Incoming - x-request-id: {}, Headers: {}", requestId, headers);
 
         TrafficEvent event = buildProxyEvent(requestId, tenantId, "shadow", body, headers);
         kafkaProducerService.publishTrafficEvent(event);
@@ -144,8 +146,8 @@ public class IngestionController {
     }
 
     private TrafficEvent buildProxyEvent(String requestId, String tenantId,
-                                          String trafficType, String body,
-                                          Map<String, String> headers) {
+            String trafficType, String body,
+            Map<String, String> headers) {
         TrafficEvent event = new TrafficEvent();
         event.setRequestId(requestId != null ? requestId : UUID.randomUUID().toString());
         event.setTenantId(tenantId != null ? tenantId : "default");
