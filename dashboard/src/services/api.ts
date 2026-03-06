@@ -167,6 +167,7 @@ export const getComparison = async (requestId: string) => {
                 ai_explanation: data.ai_explanation,
                 recommended_action: data.recommended_action,
                 field_diffs: data.field_diffs || [],
+                explanation: data.explanation || null,
             },
         },
     };

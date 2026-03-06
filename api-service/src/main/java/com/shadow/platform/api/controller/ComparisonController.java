@@ -24,13 +24,13 @@ public class ComparisonController {
 
     @GetMapping("/{requestId}")
     public ResponseEntity<?> getComparison(@PathVariable String requestId,
-                                           HttpServletRequest request) {
-        
+            HttpServletRequest request) {
+
         Optional<ComparisonResultEntity> entityOpt = comparisonRepository.findById(requestId);
         if (entityOpt.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
-        
+
         ComparisonResultEntity entity = entityOpt.get();
 
         Map<String, Object> comparisonData = new LinkedHashMap<>();
@@ -48,25 +48,35 @@ public class ComparisonController {
         comparisonData.put("recommended_action", entity.getRecommendedAction());
         comparisonData.put("field_diffs", entity.getFieldDiffs());
 
+        if (entity.getExplanationSummary() != null || entity.getExplanationDetails() != null) {
+            Map<String, Object> explanation = new LinkedHashMap<>();
+            explanation.put("summary", entity.getExplanationSummary());
+            explanation.put("details", entity.getExplanationDetails());
+            explanation.put("impact", entity.getExplanationImpact());
+            explanation.put("confidence", entity.getExplanationConfidence());
+            comparisonData.put("explanation", explanation);
+        }
+
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("request_id", entity.getRequestId());
         result.put("tenant_id", entity.getTenantId());
-        result.put("timestamp", entity.getTimestamp() != null ? entity.getTimestamp().toString() : Instant.now().toString());
+        result.put("timestamp",
+                entity.getTimestamp() != null ? entity.getTimestamp().toString() : Instant.now().toString());
         result.put("endpoint", entity.getEndpoint());
         result.put("method", entity.getMethod());
-        
+
         Map<String, Object> prod = new LinkedHashMap<>();
         prod.put("status_code", entity.getProdStatusCode());
         prod.put("response_time_ms", entity.getProdResponseTimeMs());
         prod.put("body", entity.getProdBody());
         result.put("production", prod);
-        
+
         Map<String, Object> shadow = new LinkedHashMap<>();
         shadow.put("status_code", entity.getShadowStatusCode());
         shadow.put("response_time_ms", entity.getShadowResponseTimeMs());
         shadow.put("body", entity.getShadowBody());
         result.put("shadow", shadow);
-        
+
         result.put("comparison", comparisonData);
 
         return ResponseEntity.ok(result);
@@ -92,17 +102,20 @@ public class ComparisonController {
             if (from != null && !from.isEmpty()) {
                 try {
                     predicates.add(cb.greaterThanOrEqualTo(root.get("timestamp"), Instant.parse(from)));
-                } catch (Exception e) {}
+                } catch (Exception e) {
+                }
             }
             if (to != null && !to.isEmpty()) {
                 try {
                     predicates.add(cb.lessThanOrEqualTo(root.get("timestamp"), Instant.parse(to)));
-                } catch (Exception e) {}
+                } catch (Exception e) {
+                }
             }
             return cb.and(predicates.toArray(new Predicate[0]));
         };
 
-        Page<ComparisonResultEntity> resultPage = comparisonRepository.findAll(spec, PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "timestamp")));
+        Page<ComparisonResultEntity> resultPage = comparisonRepository.findAll(spec,
+                PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "timestamp")));
 
         List<Map<String, Object>> comparisons = new ArrayList<>();
         for (ComparisonResultEntity entity : resultPage.getContent()) {
@@ -112,7 +125,8 @@ public class ComparisonController {
             map.put("severity", entity.getSeverity());
             map.put("similarity_score", entity.getSimilarityScore());
             map.put("risk_score", entity.getRiskScore());
-            map.put("timestamp", entity.getTimestamp() != null ? entity.getTimestamp().toString() : Instant.now().toString());
+            map.put("timestamp",
+                    entity.getTimestamp() != null ? entity.getTimestamp().toString() : Instant.now().toString());
             comparisons.add(map);
         }
 
@@ -121,7 +135,6 @@ public class ComparisonController {
                 "page", resultPage.getNumber(),
                 "size", resultPage.getSize(),
                 "total", resultPage.getTotalElements(),
-                "total_pages", resultPage.getTotalPages()
-        ));
+                "total_pages", resultPage.getTotalPages()));
     }
 }

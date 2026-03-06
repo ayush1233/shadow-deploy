@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getComparison } from '../services/api';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export default function ComparisonDetailPage() {
     const { requestId } = useParams<{ requestId: string }>();
@@ -9,6 +10,7 @@ export default function ComparisonDetailPage() {
     const [data, setData] = useState<any>(null);
     const [isLoaded, setIsLoaded] = useState(false);
     const [error, setError] = useState('');
+    const [isDiffExpanded, setIsDiffExpanded] = useState(false);
 
     useEffect(() => {
         let isMounted = true;
@@ -174,103 +176,172 @@ export default function ComparisonDetailPage() {
             </div>
 
             {/* AI Explanation Panel */}
-            {comp.ai_compared && comp.ai_explanation && (
-                <div className="chart-card gradient-border glow-border ai-panel" style={{ marginBottom: 24, padding: 24, position: 'relative', overflow: 'hidden' }}>
+            {comp.explanation && (
+                <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="chart-card gradient-border glow-border ai-panel border-glow"
+                    style={{
+                        marginBottom: 24,
+                        padding: 24,
+                        position: 'relative',
+                        overflow: 'hidden',
+                        background: 'rgba(30, 41, 59, 0.45)',
+                        backdropFilter: 'blur(16px)',
+                        border: '1px solid rgba(255, 255, 255, 0.08)'
+                    }}
+                >
                     <div style={{ position: 'absolute', top: -20, right: -20, opacity: 0.03, fontSize: 120, pointerEvents: 'none' }}>✨</div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                        <span style={{ fontSize: 18 }}>✨</span>
-                        <h3 style={{ margin: 0, fontSize: 16, fontWeight: 500, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                            Gemini Architecture Analysis
-                            <span style={{ fontSize: 10, background: 'rgba(167, 139, 250, 0.1)', color: 'var(--accent-purple)', padding: '2px 8px', borderRadius: 12, border: '1px solid rgba(167, 139, 250, 0.2)' }}>
-                                AI SEMANTIC DIFF
+
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <span style={{ fontSize: 22 }}>🧠</span>
+                            <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: 'var(--text-primary)' }}>
+                                AI Analysis
+                            </h3>
+                        </div>
+                        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                            <span style={{
+                                fontSize: 13,
+                                fontWeight: 600,
+                                background: comp.explanation.impact?.toLowerCase().includes('high') ? 'rgba(239, 68, 68, 0.15)' :
+                                    comp.explanation.impact?.toLowerCase().includes('medium') ? 'rgba(245, 158, 11, 0.15)' :
+                                        'rgba(16, 185, 129, 0.15)',
+                                color: comp.explanation.impact?.toLowerCase().includes('high') ? 'var(--accent-red)' :
+                                    comp.explanation.impact?.toLowerCase().includes('medium') ? 'var(--accent-yellow)' :
+                                        'var(--accent-green)',
+                                padding: '4px 12px',
+                                borderRadius: 16,
+                                border: comp.explanation.impact?.toLowerCase().includes('high') ? '1px solid rgba(239, 68, 68, 0.3)' :
+                                    comp.explanation.impact?.toLowerCase().includes('medium') ? '1px solid rgba(245, 158, 11, 0.3)' :
+                                        '1px solid rgba(16, 185, 129, 0.3)'
+                            }}>
+                                {comp.explanation.impact || 'Unknown Impact'}
                             </span>
-                        </h3>
+                            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                                Confidence: {(comp.explanation.confidence * 100).toFixed(0)}%
+                            </span>
+                        </div>
                     </div>
-                    <p style={{ margin: 0, color: 'var(--text-secondary)', lineHeight: 1.6, fontSize: 14 }}>
-                        {comp.ai_explanation}
-                    </p>
-                </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                        <div>
+                            <h4 style={{ margin: '0 0 6px 0', fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>Summary</h4>
+                            <p style={{ margin: 0, color: 'var(--text-primary)', fontSize: 16, fontWeight: 500 }}>{comp.explanation.summary}</p>
+                        </div>
+                        <div>
+                            <h4 style={{ margin: '0 0 6px 0', fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>Details</h4>
+                            <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: 14, lineHeight: 1.6 }}>{comp.explanation.details}</p>
+                        </div>
+                    </div>
+                </motion.div>
             )}
 
-            {/* Payload Comparison Split View */}
-            <div className="split-view">
-                {/* Production Column */}
-                <div className="chart-card payload-panel">
-                    <div className="card-header" style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-color)', background: 'rgba(52, 211, 153, 0.02)' }}>
-                        <span className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: 'var(--accent-green)', boxShadow: '0 0 8px var(--accent-green)' }}></span>
-                            Production Data (v1)
-                        </span>
-                        <div style={{ display: 'flex', gap: 16, fontSize: 13 }}>
-                            <span style={{ color: 'var(--text-muted)' }}>{data.production.response_time_ms}ms</span>
-                            <span style={{ color: 'var(--accent-green)', fontWeight: 600 }}>{data.production.status_code} OK</span>
-                        </div>
-                    </div>
-                    <div className="json-viewer">
-                        {viewMode === 'formatted' ? (
-                            <pre>
-                                {highlightDiffs(prodBodyRaw, comp.field_diffs, 'prod')}
-                            </pre>
-                        ) : (
-                            <pre>{prodBodyRaw}</pre>
-                        )}
-                    </div>
-                </div>
-
-                {/* Shadow Column */}
-                <div className="chart-card payload-panel">
-                    <div className="card-header" style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-color)', background: 'rgba(167, 139, 250, 0.02)' }}>
-                        <span className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: 'var(--accent-purple)', boxShadow: '0 0 8px var(--accent-purple)' }}></span>
-                            Shadow Data (v2 candidate)
-                        </span>
-                        <div style={{ display: 'flex', gap: 16, fontSize: 13 }}>
-                            <span style={{ color: 'var(--text-muted)' }}>{data.shadow.response_time_ms}ms</span>
-                            <span style={{ color: comp.status_match ? 'var(--accent-green)' : 'var(--accent-red)', fontWeight: 600 }}>{data.shadow.status_code}</span>
-                        </div>
-                    </div>
-                    <div className="json-viewer">
-                        {viewMode === 'formatted' ? (
-                            <pre>
-                                {highlightDiffs(shadowBodyRaw, comp.field_diffs, 'shadow')}
-                            </pre>
-                        ) : (
-                            <pre>{shadowBodyRaw}</pre>
-                        )}
-                    </div>
-                </div>
+            {/* Expandable Diff Viewer Toggle */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <h3 style={{ margin: 0, fontSize: 16, color: 'var(--text-primary)' }}>Raw Payloads</h3>
+                <button
+                    className="btn btn-secondary"
+                    onClick={() => setIsDiffExpanded(!isDiffExpanded)}
+                    style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', display: 'flex', gap: 8, alignItems: 'center' }}
+                >
+                    {isDiffExpanded ? 'Hide Full Diff' : 'View Full Diff'}
+                    <motion.div animate={{ rotate: isDiffExpanded ? 180 : 0 }}>▼</motion.div>
+                </button>
             </div>
 
-            {/* Field Level Diffs Summary */}
-            {comp.field_diffs && comp.field_diffs.length > 0 && (
-                <div className="chart-card" style={{ marginTop: 24 }}>
-                    <div className="card-header"><span className="card-title">Structured Field Differences</span></div>
-                    <table className="data-table">
-                        <thead>
-                            <tr>
-                                <th>Path</th>
-                                <th>Type</th>
-                                <th>Production Value</th>
-                                <th>Shadow Value</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {comp.field_diffs.map((diff: any, idx: number) => (
-                                <tr key={idx}>
-                                    <td style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--text-primary)' }}>{diff.path}</td>
-                                    <td>
-                                        <span className={`diff-badge diff-${diff.diff_type === 'ADDED' ? 'success' : diff.diff_type === 'REMOVED' ? 'danger' : 'warning'}`}>
-                                            {diff.diff_type}
-                                        </span>
-                                    </td>
-                                    <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-secondary)' }}>{String(diff.prod_value)}</td>
-                                    <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-secondary)' }}>{String(diff.shadow_value)}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            )}
+            <AnimatePresence>
+                {isDiffExpanded && (
+                    <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        style={{ overflow: 'hidden' }}
+                    >
+
+                        {/* Payload Comparison Split View */}
+                        <div className="split-view">
+                            {/* Production Column */}
+                            <div className="chart-card payload-panel">
+                                <div className="card-header" style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-color)', background: 'rgba(52, 211, 153, 0.02)' }}>
+                                    <span className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: 'var(--accent-green)', boxShadow: '0 0 8px var(--accent-green)' }}></span>
+                                        Production Data (v1)
+                                    </span>
+                                    <div style={{ display: 'flex', gap: 16, fontSize: 13 }}>
+                                        <span style={{ color: 'var(--text-muted)' }}>{data.production.response_time_ms}ms</span>
+                                        <span style={{ color: 'var(--accent-green)', fontWeight: 600 }}>{data.production.status_code} OK</span>
+                                    </div>
+                                </div>
+                                <div className="json-viewer">
+                                    {viewMode === 'formatted' ? (
+                                        <pre>
+                                            {highlightDiffs(prodBodyRaw, comp.field_diffs, 'prod')}
+                                        </pre>
+                                    ) : (
+                                        <pre>{prodBodyRaw}</pre>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Shadow Column */}
+                            <div className="chart-card payload-panel">
+                                <div className="card-header" style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-color)', background: 'rgba(167, 139, 250, 0.02)' }}>
+                                    <span className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: 'var(--accent-purple)', boxShadow: '0 0 8px var(--accent-purple)' }}></span>
+                                        Shadow Data (v2 candidate)
+                                    </span>
+                                    <div style={{ display: 'flex', gap: 16, fontSize: 13 }}>
+                                        <span style={{ color: 'var(--text-muted)' }}>{data.shadow.response_time_ms}ms</span>
+                                        <span style={{ color: comp.status_match ? 'var(--accent-green)' : 'var(--accent-red)', fontWeight: 600 }}>{data.shadow.status_code}</span>
+                                    </div>
+                                </div>
+                                <div className="json-viewer">
+                                    {viewMode === 'formatted' ? (
+                                        <pre>
+                                            {highlightDiffs(shadowBodyRaw, comp.field_diffs, 'shadow')}
+                                        </pre>
+                                    ) : (
+                                        <pre>{shadowBodyRaw}</pre>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Field Level Diffs Summary */}
+                        {comp.field_diffs && comp.field_diffs.length > 0 && (
+                            <div className="chart-card" style={{ marginTop: 24 }}>
+                                <div className="card-header"><span className="card-title">Structured Field Differences</span></div>
+                                <table className="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Path</th>
+                                            <th>Type</th>
+                                            <th>Production Value</th>
+                                            <th>Shadow Value</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {comp.field_diffs.map((diff: any, idx: number) => (
+                                            <tr key={idx}>
+                                                <td style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--text-primary)' }}>{diff.path}</td>
+                                                <td>
+                                                    <span className={`diff-badge diff-${diff.diff_type === 'ADDED' ? 'success' : diff.diff_type === 'REMOVED' ? 'danger' : 'warning'}`}>
+                                                        {diff.diff_type}
+                                                    </span>
+                                                </td>
+                                                <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-secondary)' }}>{String(diff.prod_value)}</td>
+                                                <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-secondary)' }}>{String(diff.shadow_value)}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }

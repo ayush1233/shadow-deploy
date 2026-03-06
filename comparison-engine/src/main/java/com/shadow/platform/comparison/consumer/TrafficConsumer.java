@@ -3,6 +3,7 @@ package com.shadow.platform.comparison.consumer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shadow.platform.comparison.model.ComparisonResult;
 import com.shadow.platform.comparison.service.AIComparisonClient;
+import com.shadow.platform.comparison.service.AIExplanationService;
 import com.shadow.platform.comparison.service.CorrelationService;
 import com.shadow.platform.comparison.service.DeterministicComparator;
 import io.micrometer.core.instrument.Counter;
@@ -29,6 +30,7 @@ public class TrafficConsumer {
     private final CorrelationService correlationService;
     private final DeterministicComparator deterministicComparator;
     private final AIComparisonClient aiComparisonClient;
+    private final AIExplanationService aiExplanationService;
     private final KafkaTemplate<String, ComparisonResult> kafkaTemplate;
     private final ObjectMapper objectMapper;
     private final Counter processedCounter;
@@ -43,11 +45,13 @@ public class TrafficConsumer {
     public TrafficConsumer(CorrelationService correlationService,
             DeterministicComparator deterministicComparator,
             AIComparisonClient aiComparisonClient,
+            AIExplanationService aiExplanationService,
             KafkaTemplate<String, ComparisonResult> kafkaTemplate,
             MeterRegistry meterRegistry) {
         this.correlationService = correlationService;
         this.deterministicComparator = deterministicComparator;
         this.aiComparisonClient = aiComparisonClient;
+        this.aiExplanationService = aiExplanationService;
         this.kafkaTemplate = kafkaTemplate;
         this.objectMapper = new ObjectMapper();
         this.objectMapper.findAndRegisterModules();
@@ -95,6 +99,18 @@ public class TrafficConsumer {
                 String prodBody = getString(prodData, "response_body");
                 String shadowBody = getString(shadowData, "response_body");
                 result = aiComparisonClient.enrichWithAI(result, prodBody, shadowBody);
+
+                // ── Step 2.5: AI Explanation ──
+                if (!result.isDeterministicPass()
+                        || (result.getSimilarityScore() != null && result.getSimilarityScore() < 0.95)) {
+                    try {
+                        ComparisonResult.AIExplanation explanation = aiExplanationService.generateExplanation(
+                                requestId, prodBody, shadowBody, result.getFieldDiffs()).get();
+                        result.setExplanation(explanation);
+                    } catch (Exception e) {
+                        log.error("Failed to generate AI explanation: {}", e.getMessage());
+                    }
+                }
             } else {
                 result.setAiCompared(false);
                 result.setSimilarityScore(1.0);
