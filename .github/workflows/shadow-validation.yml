@@ -40,20 +40,17 @@ jobs:
       - name: Build Ingestion Service
         run: |
           cd ingestion-service
-          chmod +x gradlew 2>/dev/null || true
-          ./gradlew build -x test
+          gradle build -x test
 
       - name: Build Comparison Engine
         run: |
           cd comparison-engine
-          chmod +x gradlew 2>/dev/null || true
-          ./gradlew build -x test
+          gradle build -x test
 
       - name: Build API Service
         run: |
           cd api-service
-          chmod +x gradlew 2>/dev/null || true
-          ./gradlew build -x test
+          gradle build -x test
 
       - name: Verify AI Service
         run: |
