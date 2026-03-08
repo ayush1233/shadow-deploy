@@ -1,0 +1,38 @@
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Node
+node_modules/
+dashboard/node_modules/
+dist/
+dashboard/dist/
+
+# Java
+target/
+*.jar
+.gradle/
+**/bin/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.override.yml
+
+# Logs
+*.log
+*_logs.txt

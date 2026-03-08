@@ -1,0 +1,51 @@
+﻿{
+    "request_id":  "req-ai-test-51210d",
+    "tenant_id":  "demo",
+    "timestamp":  "2026-03-06T21:12:30.497942876Z",
+    "endpoint":  "/api/v1/checkout",
+    "method":  "POST",
+    "production":  {
+                       "status_code":  200,
+                       "response_time_ms":  150,
+                       "body":  null
+                   },
+    "shadow":  {
+                   "status_code":  200,
+                   "response_time_ms":  165,
+                   "body":  null
+               },
+    "comparison":  {
+                       "status_match":  true,
+                       "headers_match":  null,
+                       "body_match":  false,
+                       "structure_match":  false,
+                       "latency_delta_ms":  15,
+                       "similarity_score":  0.81,
+                       "risk_score":  2.1,
+                       "severity":  "low",
+                       "deterministic_pass":  false,
+                       "ai_compared":  true,
+                       "ai_explanation":  "Found 1 potentially breaking change(s). Found 2 safe/ignorable difference(s).",
+                       "recommended_action":  "SAFE_TO_PROMOTE",
+                       "field_diffs":  [
+                                           {
+                                               "path":  "/payment_details",
+                                               "diff_type":  "REMOVED",
+                                               "prod_value":  "",
+                                               "shadow_value":  ""
+                                           },
+                                           {
+                                               "path":  "/payment",
+                                               "diff_type":  "ADDED",
+                                               "prod_value":  "",
+                                               "shadow_value":  "{\"type\":\"CARD\",\"masked_number\":\"****-****-****-4242\",\"provider\":\"stripe\"}"
+                                           },
+                                           {
+                                               "path":  "/new_feature_flag",
+                                               "diff_type":  "ADDED",
+                                               "prod_value":  "",
+                                               "shadow_value":  "true"
+                                           }
+                                       ]
+                   }
+}

@@ -77,10 +77,10 @@ public class AIExplanationService {
                             Map.of("parts", List.of(Map.of("text", prompt)))),
                     "generationConfig", Map.of("responseMimeType", "application/json"));
 
-            String url = "/v1beta/models/gemini-1.5-flash:generateContent?key=" + geminiApiKey;
-
             JsonNode response = webClient.post()
-                    .uri(url)
+                    .uri(uriBuilder -> uriBuilder.path("/v1beta/models/gemini-1.5-flash:generateContent")
+                            .queryParam("key", geminiApiKey)
+                            .build())
                     .contentType(MediaType.APPLICATION_JSON)
                     .bodyValue(requestBody)
                     .retrieve()

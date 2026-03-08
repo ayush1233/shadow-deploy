@@ -4,12 +4,15 @@ import {
     AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
     XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
-import { configureProxy, getMetricsSummary } from '../services/api';
+import { configureProxy, getMetricsSummary, getRiskTrend } from '../services/api';
+import { exportCsv } from '../utils/exportCsv';
+import { exportPdf } from '../utils/exportPdf';
 
 export default function OverviewPage() {
     const navigate = useNavigate();
     const [isLoaded, setIsLoaded] = useState(false);
     const [metrics, setMetrics] = useState<any>(null);
+    const [trendData, setTrendData] = useState<any[]>([]);
 
     // AI Configurator State
     const [configPrompt, setConfigPrompt] = useState('');
@@ -35,8 +38,12 @@ export default function OverviewPage() {
     useEffect(() => {
         const fetchMetrics = async () => {
             try {
-                const { data } = await getMetricsSummary();
-                setMetrics(data);
+                const [summaryRes, trendRes] = await Promise.all([
+                    getMetricsSummary(),
+                    getRiskTrend(7)
+                ]);
+                setMetrics(summaryRes.data);
+                setTrendData(trendRes);
                 setIsLoaded(true);
             } catch (err: any) {
                 console.error("Failed to fetch metrics", err);
@@ -45,6 +52,16 @@ export default function OverviewPage() {
         };
         fetchMetrics();
     }, [navigate]);
+
+    const handleExportCsv = () => {
+        if (!trendData || trendData.length === 0) return;
+        exportCsv(trendData, 'shadow-risk-trend.csv');
+    };
+
+    const handleExportPdf = () => {
+        if (!trendData || trendData.length === 0) return;
+        exportPdf(trendData, '7-Day Risk & Pass Rate Trend', 'shadow-risk-trend.pdf');
+    };
 
     if (!isLoaded || !metrics) {
         return (
@@ -95,9 +112,15 @@ export default function OverviewPage() {
 
     return (
         <div style={{ opacity: isLoaded ? 1 : 0, transition: 'opacity 0.5s ease' }}>
-            <div className="page-header">
-                <h2>Deployment Overview</h2>
-                <p>Live Shadow API validation metrics</p>
+            <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                    <h2>Deployment Overview</h2>
+                    <p>Live Shadow API validation metrics</p>
+                </div>
+                <div style={{ display: 'flex', gap: 12 }}>
+                    <button className="btn" style={{ background: 'var(--bg-surface)' }} onClick={handleExportCsv}>⬇ CSV Report</button>
+                    <button className="btn" style={{ background: 'var(--bg-surface)' }} onClick={handleExportPdf}>⬇ PDF Report</button>
+                </div>
             </div>
 
             {/* Stats Row */}
@@ -236,6 +259,39 @@ export default function OverviewPage() {
                     </ResponsiveContainer>
                 </div>
             </div>
+
+            {/* Risk Trend Chart */}
+            {trendData && trendData.length > 0 && (
+                <div className="charts-grid" style={{ gridTemplateColumns: '1fr', marginBottom: 24 }}>
+                    <div className="chart-card glow-border" style={{ position: 'relative' }}>
+                        <div className="card-header">
+                            <span className="card-title">7-Day Risk vs Pass Rate Trend</span>
+                        </div>
+                        <ResponsiveContainer width="100%" height={280}>
+                            <AreaChart data={trendData}>
+                                <defs>
+                                    <linearGradient id="colorRisk" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.3} />
+                                        <stop offset="95%" stopColor="#f43f5e" stopOpacity={0} />
+                                    </linearGradient>
+                                    <linearGradient id="colorPass" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                                    </linearGradient>
+                                </defs>
+                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                                <XAxis dataKey="date" stroke="#71717a" fontSize={10} tickLine={false} axisLine={false} />
+                                <YAxis yAxisId="left" stroke="#71717a" fontSize={10} tickLine={false} axisLine={false} />
+                                <YAxis yAxisId="right" orientation="right" stroke="#71717a" fontSize={10} unit="%" tickLine={false} axisLine={false} />
+                                <Tooltip contentStyle={{ background: '#0a0a0a', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, fontSize: 12 }} />
+                                <Legend iconType="circle" wrapperStyle={{ fontSize: 12, color: '#a1a1aa' }} />
+                                <Area yAxisId="left" type="monotone" dataKey="avg_risk" stroke="#f43f5e" fillOpacity={1} fill="url(#colorRisk)" name="Avg Risk Score" strokeWidth={2} />
+                                <Area yAxisId="right" type="monotone" dataKey="pass_rate" stroke="#3b82f6" fillOpacity={1} fill="url(#colorPass)" name="Pass Rate" strokeWidth={2} />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+            )}
 
             {/* AI Configurator */}
             <div className="chart-card" style={{ marginBottom: 24, border: '1px solid var(--accent-purple)' }}>

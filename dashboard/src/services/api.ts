@@ -177,3 +177,62 @@ export const getComparison = async (requestId: string) => {
 import axios from 'axios';
 export const configureProxy = (instruction: string) =>
     axios.post('/ai-api/configure-proxy', { instruction });
+
+export const runWebsiteTest = (data: { production_url: string; shadow_url: string; paths: string[] }) =>
+    axios.post('/ai-api/website-test', data);
+
+export const getNotificationConfig = () =>
+    axios.get('/ai-api/notifications/config');
+
+export const configureNotifications = (data: any) =>
+    axios.post('/ai-api/notifications/configure', data);
+
+// ── Historical Trend ──
+export const getRiskTrend = async (days: number = 7) => {
+    const since = new Date();
+    since.setDate(since.getDate() - days);
+
+    // Select specific needed fields
+    const { data, error } = await supabase
+        .from('comparisons')
+        .select('created_at, risk_score, severity, deterministic_pass')
+        .gte('created_at', since.toISOString())
+        .order('created_at', { ascending: true });
+
+    if (error) throw error;
+
+    // Group by day for simple stats
+    const grouped: Record<string, { count: number, riskSum: number, passes: number }> = {};
+    (data || []).forEach(row => {
+        const date = row.created_at.substring(0, 10);
+        if (!grouped[date]) grouped[date] = { count: 0, riskSum: 0, passes: 0 };
+        grouped[date].count++;
+        grouped[date].riskSum += Number(row.risk_score || 0);
+        if (row.deterministic_pass) grouped[date].passes++;
+    });
+
+    return Object.entries(grouped).map(([date, stats]: any) => ({
+        date,
+        avg_risk: (stats.riskSum / stats.count).toFixed(2),
+        count: stats.count,
+        pass_rate: ((stats.passes / stats.count) * 100).toFixed(1)
+    }));
+};
+
+// ── Endpoint Tags ──
+export const getEndpointTags = async () => {
+    const { data, error } = await supabase.from('endpoint_tags').select('*');
+    if (error && error.code !== '42P01') throw error; // ignore if table doesn't exist yet
+    return data || [];
+};
+
+export const createEndpointTag = async (pattern: string, tag: string, color: string) => {
+    const { data, error } = await supabase.from('endpoint_tags').insert([{ endpoint_pattern: pattern, tag, color }]);
+    if (error) throw error;
+    return data;
+};
+
+export const deleteEndpointTag = async (id: string) => {
+    const { error } = await supabase.from('endpoint_tags').delete().eq('id', id);
+    if (error) throw error;
+};

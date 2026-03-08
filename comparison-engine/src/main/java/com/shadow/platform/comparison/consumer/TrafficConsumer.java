@@ -118,6 +118,9 @@ public class TrafficConsumer {
                 result.setRiskScore(0.0);
             }
 
+            result.setProdBody(getString(prodData, "response_body"));
+            result.setShadowBody(getString(shadowData, "response_body"));
+
             // ── Step 3: Publish result to Kafka ──
             String key = result.getTenantId() + ":" + result.getRequestId();
             kafkaTemplate.send(comparisonResultsTopic, key, result);

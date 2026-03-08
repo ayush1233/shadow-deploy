@@ -60,3 +60,17 @@ CREATE POLICY "Allow all access" ON comparisons FOR ALL USING (true) WITH CHECK 
 -- The Network Topology page auto-detects services from 
 -- nginx.conf and docker-compose.yml — no database table needed.
 -- ============================================================
+
+-- Table: endpoint_tags
+-- Stores custom tags and colors for URL patterns
+CREATE TABLE IF NOT EXISTS endpoint_tags (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    endpoint_pattern TEXT NOT NULL UNIQUE,
+    tag TEXT NOT NULL,
+    color TEXT NOT NULL DEFAULT '#3b82f6',
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Enable Row Level Security (RLS) but allow anon access for demo
+ALTER TABLE endpoint_tags ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow all access tags" ON endpoint_tags FOR ALL USING (true) WITH CHECK (true);

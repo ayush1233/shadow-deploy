@@ -19,6 +19,14 @@ from models import ComparisonRequest, ComparisonResponse, HealthResponse
 from comparison.semantic_comparator import SemanticComparator
 from comparison.pii_masker import PIIMasker
 from comparison.risk_scorer import RiskScorer
+from pydantic import BaseModel
+from typing import List
+import requests
+import asyncio
+
+from notifications.slack_notifier import SlackNotifier
+from notifications.webhook_notifier import WebhookNotifier
+from notifications.email_notifier import EmailNotifier
 
 # ─────────────────────────────────────────
 # Logging
@@ -44,6 +52,34 @@ RISK_SCORE_GAUGE = Gauge("ai_current_risk_score", "Current risk score")
 comparator: Optional[SemanticComparator] = None
 pii_masker: Optional[PIIMasker] = None
 risk_scorer: Optional[RiskScorer] = None
+
+# Notification Settings
+class NotificationConfigRecord:
+    slack_webhook_url: str = os.getenv("SLACK_WEBHOOK_URL", "")
+    generic_webhook_url: str = ""
+    risk_threshold: float = float(os.getenv("ALERT_RISK_THRESHOLD", 7.0))
+    severity_threshold: str = "high"
+    enable_slack: bool = bool(os.getenv("SLACK_WEBHOOK_URL"))
+    enable_webhook: bool = False
+
+notification_config = NotificationConfigRecord()
+
+def trigger_notifications(response: ComparisonResponse, endpoint: str):
+    if response.risk_score >= notification_config.risk_threshold:
+        severities = ["critical", "high", "medium", "low"]
+        try:
+            req_sev_idx = severities.index(response.severity)
+            thresh_sev_idx = severities.index(notification_config.severity_threshold)
+            if req_sev_idx <= thresh_sev_idx:
+                msg = f"High Risk Detected ({response.risk_score:.1f}) on {endpoint}\nSeverity: {response.severity.upper()}\nAI Explanation: {response.explanation}"
+                ctx = {"risk_score": response.risk_score, "endpoint": endpoint, "request_id": response.request_id, "severity": response.severity}
+                
+                if notification_config.enable_slack and notification_config.slack_webhook_url:
+                    SlackNotifier(notification_config.slack_webhook_url).send(msg, ctx)
+                if notification_config.enable_webhook and notification_config.generic_webhook_url:
+                    WebhookNotifier(notification_config.generic_webhook_url).send(msg, ctx)
+        except ValueError:
+            pass
 
 
 @asynccontextmanager
@@ -160,6 +196,10 @@ async def compare(request: ComparisonRequest):
             f"risk={risk_score:.1f}, duration={duration:.3f}s]"
         )
 
+        # Trigger Notifications asynchronously
+        if risk_score >= notification_config.risk_threshold:
+            asyncio.create_task(asyncio.to_thread(trigger_notifications, response, request.endpoint))
+
         return response
 
     except Exception as e:
@@ -223,6 +263,88 @@ async def service_status():
         "gemini_configured": comparator.is_configured() if comparator else False,
         "pii_masker_active": pii_masker is not None,
         "risk_scorer_active": risk_scorer is not None,
+    }
+
+class WebsiteTestRequest(BaseModel):
+    production_url: str
+    shadow_url: str
+    paths: List[str]
+
+@app.post("/api/v1/website-test")
+async def website_test(request: WebsiteTestRequest):
+    results = []
+    
+    async def fetch_path(url, path):
+        full_url = url.rstrip("/") + "/" + path.lstrip("/")
+        start = time.time()
+        try:
+            resp = await asyncio.to_thread(requests.get, full_url, timeout=5)
+            duration = (time.time() - start) * 1000
+            return resp.status_code, resp.text, duration
+        except Exception:
+            return 0, "", 0
+
+    for path in request.paths:
+        prod_fut = fetch_path(request.production_url, path)
+        shadow_fut = fetch_path(request.shadow_url, path)
+        
+        prod_status, prod_body, prod_time = await prod_fut
+        shadow_status, shadow_body, shadow_time = await shadow_fut
+        
+        status_match = prod_status == shadow_status
+        latency_delta = shadow_time - prod_time
+        
+        # Fast comparison
+        ai_result = await comparator.compare(
+            prod_body=prod_body, shadow_body=shadow_body, endpoint=path,
+            field_diffs=[], status_match=status_match, latency_delta_ms=latency_delta
+        )
+        
+        risk_score = risk_scorer.calculate(
+            similarity_score=ai_result.get("similarity_score", 0.5),
+            has_status_mismatch=not status_match,
+            latency_delta_ms=latency_delta,
+            field_diff_count=0, has_structural_changes=ai_result.get("has_structural_changes", False)
+        )
+        
+        results.append({
+            "path": path,
+            "prod_status": prod_status,
+            "shadow_status": shadow_status,
+            "body_match": ai_result.get("similarity_score", 0) > 0.95,
+            "latency_delta_ms": round(latency_delta),
+            "risk_score": risk_score
+        })
+        
+    return results
+
+class NotificationConfigModel(BaseModel):
+    slack_webhook_url: str
+    generic_webhook_url: str
+    risk_threshold: float
+    severity_threshold: str
+    enable_slack: bool
+    enable_webhook: bool
+
+@app.post("/api/v1/notifications/configure")
+async def configure_notifications(req: NotificationConfigModel):
+    notification_config.slack_webhook_url = req.slack_webhook_url
+    notification_config.generic_webhook_url = req.generic_webhook_url
+    notification_config.risk_threshold = req.risk_threshold
+    notification_config.severity_threshold = req.severity_threshold
+    notification_config.enable_slack = req.enable_slack
+    notification_config.enable_webhook = req.enable_webhook
+    return {"status": "success"}
+
+@app.get("/api/v1/notifications/config")
+async def get_notification_config():
+    return {
+        "slack_webhook_url": notification_config.slack_webhook_url,
+        "generic_webhook_url": notification_config.generic_webhook_url,
+        "risk_threshold": notification_config.risk_threshold,
+        "severity_threshold": notification_config.severity_threshold,
+        "enable_slack": notification_config.enable_slack,
+        "enable_webhook": notification_config.enable_webhook,
     }
 
 

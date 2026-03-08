@@ -6,6 +6,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.type.TypeReference;
 
 import java.util.Map;
 
@@ -13,6 +15,7 @@ import java.util.Map;
 public class ComparisonConsumer {
 
     private static final Logger log = LoggerFactory.getLogger(ComparisonConsumer.class);
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     private final ComparisonRepository comparisonRepository;
 
@@ -51,10 +54,29 @@ public class ComparisonConsumer {
             entity.setProdStatusCode(getInteger(result, "prod_status_code"));
             entity.setProdResponseTimeMs(getLong(result, "prod_response_time_ms"));
             entity.setProdBodyHash(getString(result, "prod_body_hash"));
+            try {
+                String prodBodyStr = getString(result, "prod_body");
+                if (prodBodyStr != null) {
+                    entity.setProdBody(objectMapper.readValue(prodBodyStr, new TypeReference<Map<String, Object>>() {
+                    }));
+                }
+            } catch (Exception e) {
+                log.debug("Failed to parse prod_body");
+            }
 
             entity.setShadowStatusCode(getInteger(result, "shadow_status_code"));
             entity.setShadowResponseTimeMs(getLong(result, "shadow_response_time_ms"));
             entity.setShadowBodyHash(getString(result, "shadow_body_hash"));
+            try {
+                String shadowBodyStr = getString(result, "shadow_body");
+                if (shadowBodyStr != null) {
+                    entity.setShadowBody(
+                            objectMapper.readValue(shadowBodyStr, new TypeReference<Map<String, Object>>() {
+                            }));
+                }
+            } catch (Exception e) {
+                log.debug("Failed to parse shadow_body");
+            }
 
             entity.setStatusMatch(getBoolean(result, "status_match"));
             entity.setHeadersMatch(getBoolean(result, "headers_match"));

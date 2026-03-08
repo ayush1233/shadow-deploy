@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { listComparisons } from '../services/api';
+import { listComparisons, getEndpointTags } from '../services/api';
+import { exportCsv } from '../utils/exportCsv';
+import { exportPdf } from '../utils/exportPdf';
 
 export default function EndpointAnalysisPage() {
     const navigate = useNavigate();
@@ -11,6 +13,7 @@ export default function EndpointAnalysisPage() {
     const [endpointFilter, setEndpointFilter] = useState('');
     const [severityFilter, setSeverityFilter] = useState('all');
     const [timeRange, setTimeRange] = useState('1h');
+    const [tags, setTags] = useState<any[]>([]);
 
     useEffect(() => {
         let isMounted = true;
@@ -24,9 +27,12 @@ export default function EndpointAnalysisPage() {
                 if (severityFilter !== 'all') params.severity = severityFilter;
 
                 const { data } = await listComparisons(params);
+                const tagsData = await getEndpointTags();
+
                 if (isMounted) {
                     setComparisons(data.data || []);
                     setTotalResults(data.total || 0);
+                    setTags(tagsData || []);
                     setIsLoaded(true);
                 }
             } catch (err: any) {
@@ -46,6 +52,16 @@ export default function EndpointAnalysisPage() {
         };
     }, [endpointFilter, severityFilter, timeRange, navigate]);
 
+    const handleExportCsv = () => {
+        if (!comparisons || comparisons.length === 0) return;
+        exportCsv(comparisons, 'endpoint-analysis.csv');
+    };
+
+    const handleExportPdf = () => {
+        if (!comparisons || comparisons.length === 0) return;
+        exportPdf(comparisons, 'Endpoint Analysis', 'endpoint-analysis.pdf');
+    };
+
     const getScoreBarColor = (score: number) => {
         if (score <= 3) return 'var(--accent-green)';
         if (score <= 6) return 'var(--accent-yellow)';
@@ -60,11 +76,17 @@ export default function EndpointAnalysisPage() {
             </div>
 
             <div className="data-table-container">
-                <div className="table-header">
-                    <span className="card-title">Comparison Results</span>
-                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                        {isLoaded ? `${totalResults} results` : 'Loading...'}
-                    </span>
+                <div className="table-header" style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+                    <div>
+                        <span className="card-title">Comparison Results</span>
+                        <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8 }}>
+                            {isLoaded ? `${totalResults} results` : 'Loading...'}
+                        </span>
+                    </div>
+                    <div style={{ display: 'flex', gap: 12 }}>
+                        <button className="btn" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)' }} onClick={handleExportCsv}>⬇ CSV</button>
+                        <button className="btn" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)' }} onClick={handleExportPdf}>⬇ PDF</button>
+                    </div>
                 </div>
 
                 {/* Filters */}
@@ -125,7 +147,14 @@ export default function EndpointAnalysisPage() {
 
                                 return (
                                     <tr key={item.request_id || item.requestId} onClick={() => navigate(`/comparison/${item.request_id || item.requestId}`)}>
-                                        <td className="endpoint-cell">{item.endpoint}</td>
+                                        <td className="endpoint-cell">
+                                            {item.endpoint}
+                                            {tags.filter(t => item.endpoint.includes(t.endpoint_pattern)).map((t: any) => (
+                                                <span key={t.id} style={{ marginLeft: 8, padding: '2px 8px', borderRadius: 12, fontSize: 10, background: t.color, color: '#fff' }}>
+                                                    {t.tag}
+                                                </span>
+                                            ))}
+                                        </td>
                                         <td>
                                             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{statusString}</span>
                                         </td>

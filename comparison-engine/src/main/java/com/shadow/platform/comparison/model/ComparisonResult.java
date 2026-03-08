@@ -35,6 +35,9 @@ public class ComparisonResult {
     @JsonProperty("prod_body_hash")
     private String prodBodyHash;
 
+    @JsonProperty("prod_body")
+    private String prodBody;
+
     // ── Shadow Response ──
     @JsonProperty("shadow_status_code")
     private Integer shadowStatusCode;
@@ -44,6 +47,9 @@ public class ComparisonResult {
 
     @JsonProperty("shadow_body_hash")
     private String shadowBodyHash;
+
+    @JsonProperty("shadow_body")
+    private String shadowBody;
 
     // ── Deterministic Comparison ──
     @JsonProperty("status_match")
@@ -319,6 +325,22 @@ public class ComparisonResult {
 
     public void setTags(List<String> t) {
         this.tags = t;
+    }
+
+    public String getProdBody() {
+        return prodBody;
+    }
+
+    public void setProdBody(String prodBody) {
+        this.prodBody = prodBody;
+    }
+
+    public String getShadowBody() {
+        return shadowBody;
+    }
+
+    public void setShadowBody(String shadowBody) {
+        this.shadowBody = shadowBody;
     }
 
     // ── Inner classes ──

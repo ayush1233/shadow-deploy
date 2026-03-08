@@ -176,6 +176,7 @@ services:
       - SUPABASE_DB_PASSWORD=${SUPABASE_DB_PASSWORD}
       - JAVA_TOOL_OPTIONS="-Djava.net.preferIPv4Stack=true"
       - AI_SERVICE_URL=http://ai-service:8000
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
     networks:
       - shadow-net
     depends_on:
@@ -242,6 +243,24 @@ services:
       - shadow-net
     depends_on:
       - api-service
+
+  sample-api-v1:
+    build:
+      context: ./sample-apis/v1
+    container_name: shadow-sample-v1
+    ports:
+      - "3000:3000"
+    networks:
+      - shadow-net
+
+  sample-api-v2:
+    build:
+      context: ./sample-apis/v2
+    container_name: shadow-sample-v2
+    ports:
+      - "4000:4000"
+    networks:
+      - shadow-net
 
 # ─────────────────────────────────────────────
 # Volumes

@@ -1,0 +1,13 @@
+apiVersion: v2
+name: shadow-deploy
+description: A Helm chart for Shadow Deploy API validation platform
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+dependencies:
+  - name: kafka
+    version: 26.7.2
+    repository: https://charts.bitnami.com/bitnami
+  - name: redis
+    version: 18.6.0
+    repository: https://charts.bitnami.com/bitnami

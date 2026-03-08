@@ -1,0 +1,29 @@
+kafka:
+  enabled: true
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: false
+
+global:
+  supabasePassword: ""
+  geminiApiKey: ""
+
+proxy:
+  image: "your-docker-repo/shadow-nginx-proxy:latest"
+
+dashboard:
+  image: "your-docker-repo/shadow-dashboard:latest"
+
+apiService:
+  image: "your-docker-repo/shadow-api-service:latest"
+
+ingestionService:
+  image: "your-docker-repo/shadow-ingestion-service:latest"
+
+comparisonEngine:
+  image: "your-docker-repo/shadow-comparison-engine:latest"
+
+aiService:
+  image: "your-docker-repo/shadow-ai-service:latest"

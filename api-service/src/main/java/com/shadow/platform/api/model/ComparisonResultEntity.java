@@ -27,7 +27,7 @@ public class ComparisonResultEntity {
     @Column(name = "tenant_id")
     private String tenantId;
 
-    @Column(name = "timestamp")
+    @Column(name = "created_at")
     private Instant timestamp;
 
     @Column(name = "endpoint")
@@ -36,7 +36,7 @@ public class ComparisonResultEntity {
     @Column(name = "method")
     private String method;
 
-    @Column(name = "deployment_id")
+    @Transient
     private String deploymentId;
 
     // ── Production Response ──
@@ -46,7 +46,7 @@ public class ComparisonResultEntity {
     @Column(name = "prod_response_time_ms")
     private Long prodResponseTimeMs;
 
-    @Column(name = "prod_body_hash")
+    @Transient
     private String prodBodyHash;
 
     // ── Shadow Response ──
@@ -56,14 +56,14 @@ public class ComparisonResultEntity {
     @Column(name = "shadow_response_time_ms")
     private Long shadowResponseTimeMs;
 
-    @Column(name = "shadow_body_hash")
+    @Transient
     private String shadowBodyHash;
 
     // ── Deterministic Comparison ──
     @Column(name = "status_match")
     private Boolean statusMatch;
 
-    @Column(name = "headers_match")
+    @Transient
     private Boolean headersMatch;
 
     @Column(name = "body_match")
@@ -114,11 +114,10 @@ public class ComparisonResultEntity {
     private Double explanationConfidence;
 
     // ── Metadata ──
-    @Column(name = "environment")
+    @Transient
     private String environment;
 
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "tags", columnDefinition = "jsonb")
+    @Transient
     private List<String> tags;
 
     // Store exact bodies for frontend comparison view

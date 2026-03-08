@@ -6,6 +6,9 @@ import EndpointAnalysisPage from './pages/EndpointAnalysisPage';
 import ComparisonDetailPage from './pages/ComparisonDetailPage';
 import TopologyPage from './pages/TopologyPage';
 import LoginPage from './pages/LoginPage';
+import QuickConfigurePage from './pages/QuickConfigurePage';
+import WebsiteTestPage from './pages/WebsiteTestPage';
+import NotificationsPage from './pages/NotificationsPage';
 
 // Protected Route Wrapper — checks Supabase session
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -70,6 +73,15 @@ function ProtectedLayout() {
                     <NavLink to="/topology" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
                         <span className="nav-icon">🔀</span> Network Topology
                     </NavLink>
+                    <NavLink to="/setup" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+                        <span className="nav-icon">🚀</span> Quick Setup
+                    </NavLink>
+                    <NavLink to="/website-test" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+                        <span className="nav-icon">🌐</span> Website Test
+                    </NavLink>
+                    <NavLink to="/notifications" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+                        <span className="nav-icon">🔔</span> Alerts
+                    </NavLink>
                     <div style={{ marginTop: 'auto', borderTop: '1px solid var(--border-color)', paddingTop: 12 }}>
                         <div className="nav-link" style={{ cursor: 'pointer', opacity: 0.8 }} onClick={handleSignOut}>
                             <span className="nav-icon">🚪</span> Sign Out
@@ -85,6 +97,9 @@ function ProtectedLayout() {
                     <Route path="/endpoints" element={<EndpointAnalysisPage />} />
                     <Route path="/topology" element={<TopologyPage />} />
                     <Route path="/comparison/:requestId" element={<ComparisonDetailPage />} />
+                    <Route path="/setup" element={<QuickConfigurePage />} />
+                    <Route path="/website-test" element={<WebsiteTestPage />} />
+                    <Route path="/notifications" element={<NotificationsPage />} />
                 </Routes>
             </main>
         </div>

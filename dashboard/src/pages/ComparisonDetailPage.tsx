@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getComparison } from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
+import ReactDiffViewer from 'react-diff-viewer-continued';
+import { exportCsv } from '../utils/exportCsv';
+import { exportPdf } from '../utils/exportPdf';
 
 export default function ComparisonDetailPage() {
     const { requestId } = useParams<{ requestId: string }>();
@@ -81,32 +84,8 @@ export default function ComparisonDetailPage() {
                 return { background: 'rgba(239, 68, 68, 0.12)', color: 'var(--accent-red)', border: '1px solid rgba(239, 68, 68, 0.3)' };
             default:
                 return {};
+                return {};
         }
-    };
-
-    const highlightDiffs = (bodyStr: string, diffs: any[], side: 'prod' | 'shadow') => {
-        // Simple mock highlighter
-        if (!bodyStr) return [];
-        let lines = bodyStr.split('\n');
-        return lines.map((line, i) => {
-            let className = '';
-            if (diffs && diffs.length > 0) {
-                for (const diff of diffs) {
-                    const fieldName = diff.path.split('/').pop();
-                    if (fieldName && line.includes(`"${fieldName}"`)) {
-                        if (diff.diff_type === 'ADDED' && side === 'shadow') className = 'diff-line-added';
-                        else if (diff.diff_type === 'REMOVED' && side === 'prod') className = 'diff-line-removed';
-                        else if (diff.diff_type === 'CHANGED') className = 'diff-line-changed';
-                    }
-                }
-            }
-            return (
-                <div key={i} className={className}>
-                    <span style={{ color: 'var(--text-muted)', marginRight: 12, userSelect: 'none', display: 'inline-block', width: 24, textAlign: 'right' }}>{i + 1}</span>
-                    {line}
-                </div>
-            );
-        });
     };
 
     let prodBodyRaw = typeof data.production.body === 'string' ? data.production.body : JSON.stringify(data.production.body, null, 2);
@@ -123,16 +102,22 @@ export default function ComparisonDetailPage() {
                 ← Back to Endpoint Analysis
             </button>
 
-            <div className="page-header">
-                <h2 style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    {getSeverityEmoji(comp.severity)}
-                    Comparison Detail
-                </h2>
-                <p>
-                    <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent-cyan)' }}>{data.endpoint}</span>
-                    {' '}&middot;{' '}
-                    <span style={{ color: 'var(--text-muted)' }}>Request ID: {requestId || data.request_id}</span>
-                </p>
+            <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                    <h2 style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        {getSeverityEmoji(comp.severity)}
+                        Comparison Detail
+                    </h2>
+                    <p>
+                        <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent-cyan)' }}>{data.endpoint}</span>
+                        {' '}&middot;{' '}
+                        <span style={{ color: 'var(--text-muted)' }}>Request ID: {requestId || data.request_id}</span>
+                    </p>
+                </div>
+                <div style={{ display: 'flex', gap: 12 }}>
+                    <button className="btn" style={{ background: 'var(--bg-surface)' }} onClick={() => exportCsv([comp], `comparison-${requestId}.csv`)}>⬇ CSV</button>
+                    <button className="btn" style={{ background: 'var(--bg-surface)' }} onClick={() => exportPdf([comp], 'Comparison Detail', `comparison-${requestId}.pdf`)}>⬇ PDF</button>
+                </div>
             </div>
 
             {/* Quick Stats */}
@@ -259,53 +244,38 @@ export default function ComparisonDetailPage() {
                         style={{ overflow: 'hidden' }}
                     >
 
-                        {/* Payload Comparison Split View */}
-                        <div className="split-view">
-                            {/* Production Column */}
-                            <div className="chart-card payload-panel">
-                                <div className="card-header" style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-color)', background: 'rgba(52, 211, 153, 0.02)' }}>
-                                    <span className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                        <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: 'var(--accent-green)', boxShadow: '0 0 8px var(--accent-green)' }}></span>
-                                        Production Data (v1)
-                                    </span>
-                                    <div style={{ display: 'flex', gap: 16, fontSize: 13 }}>
-                                        <span style={{ color: 'var(--text-muted)' }}>{data.production.response_time_ms}ms</span>
-                                        <span style={{ color: 'var(--accent-green)', fontWeight: 600 }}>{data.production.status_code} OK</span>
-                                    </div>
-                                </div>
-                                <div className="json-viewer">
-                                    {viewMode === 'formatted' ? (
-                                        <pre>
-                                            {highlightDiffs(prodBodyRaw, comp.field_diffs, 'prod')}
-                                        </pre>
-                                    ) : (
-                                        <pre>{prodBodyRaw}</pre>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Shadow Column */}
-                            <div className="chart-card payload-panel">
-                                <div className="card-header" style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-color)', background: 'rgba(167, 139, 250, 0.02)' }}>
-                                    <span className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                        <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: 'var(--accent-purple)', boxShadow: '0 0 8px var(--accent-purple)' }}></span>
-                                        Shadow Data (v2 candidate)
-                                    </span>
-                                    <div style={{ display: 'flex', gap: 16, fontSize: 13 }}>
-                                        <span style={{ color: 'var(--text-muted)' }}>{data.shadow.response_time_ms}ms</span>
-                                        <span style={{ color: comp.status_match ? 'var(--accent-green)' : 'var(--accent-red)', fontWeight: 600 }}>{data.shadow.status_code}</span>
-                                    </div>
-                                </div>
-                                <div className="json-viewer">
-                                    {viewMode === 'formatted' ? (
-                                        <pre>
-                                            {highlightDiffs(shadowBodyRaw, comp.field_diffs, 'shadow')}
-                                        </pre>
-                                    ) : (
-                                        <pre>{shadowBodyRaw}</pre>
-                                    )}
-                                </div>
-                            </div>
+                        <div style={{ padding: 16, background: 'rgba(30, 41, 59, 0.45)', borderRadius: 8, marginTop: 16, border: '1px solid var(--border-color)', backdropFilter: 'blur(16px)' }}>
+                            <ReactDiffViewer
+                                oldValue={prodBodyRaw}
+                                newValue={shadowBodyRaw}
+                                splitView={true}
+                                leftTitle="Production (v1)"
+                                rightTitle="Shadow (v2 candidate)"
+                                useDarkTheme={true}
+                                showDiffOnly={!isDiffExpanded}
+                                styles={{
+                                    variables: {
+                                        dark: {
+                                            diffViewerBackground: 'transparent',
+                                            diffViewerColor: 'var(--text-primary)',
+                                            addedBackground: 'rgba(16, 185, 129, 0.15)',
+                                            addedColor: '#fff',
+                                            removedBackground: 'rgba(239, 68, 68, 0.15)',
+                                            removedColor: '#fff',
+                                            wordAddedBackground: 'rgba(16, 185, 129, 0.4)',
+                                            wordRemovedBackground: 'rgba(239, 68, 68, 0.4)',
+                                            addedGutterBackground: 'rgba(16, 185, 129, 0.05)',
+                                            removedGutterBackground: 'rgba(239, 68, 68, 0.05)',
+                                            gutterBackground: 'transparent',
+                                            gutterBackgroundDark: 'transparent',
+                                            emptyLineBackground: 'transparent',
+                                            diffViewerTitleBackground: 'rgba(0,0,0,0.2)',
+                                            diffViewerTitleColor: 'var(--text-secondary)',
+                                            diffViewerTitleBorderColor: 'var(--border-color)'
+                                        }
+                                    }
+                                }}
+                            />
                         </div>
 
                         {/* Field Level Diffs Summary */}
