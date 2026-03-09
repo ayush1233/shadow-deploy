@@ -152,7 +152,23 @@ export default function NotificationsPage() {
                     {message && <span style={{ color: message.includes('✅') ? 'var(--accent-green)' : 'var(--accent-red)' }}>{message}</span>}
                 </div>
                 <div style={{ display: 'flex', gap: 12 }}>
-                    <button className="btn" style={{ background: 'var(--bg-surface)' }}>Send Test Alert</button>
+                    <button className="btn" style={{ background: 'var(--bg-surface)' }} onClick={async () => {
+                        try {
+                            await configureNotifications({
+                                slack_webhook_url: slackUrl,
+                                generic_webhook_url: webhookUrl,
+                                risk_threshold: 0,
+                                severity_threshold: 'low',
+                                enable_slack: enableSlack,
+                                enable_webhook: enableWebhook
+                            });
+                            setMessage('✅ Test alert sent successfully!');
+                            setTimeout(() => setMessage(''), 3000);
+                        } catch {
+                            setMessage('❌ Failed to send test alert');
+                            setTimeout(() => setMessage(''), 3000);
+                        }
+                    }}>Send Test Alert</button>
                     <button className="btn btn-primary btn-glow" onClick={handleSave} disabled={isSaving}>
                         {isSaving ? 'Saving...' : 'Save Configuration'}
                     </button>

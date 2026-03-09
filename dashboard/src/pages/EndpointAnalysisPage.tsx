@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { listComparisons, getEndpointTags } from '../services/api';
+import { listComparisons, getEndpointTags, createEndpointTag, deleteEndpointTag } from '../services/api';
 import { exportCsv } from '../utils/exportCsv';
 import { exportPdf } from '../utils/exportPdf';
 
@@ -14,6 +14,11 @@ export default function EndpointAnalysisPage() {
     const [severityFilter, setSeverityFilter] = useState('all');
     const [timeRange, setTimeRange] = useState('1h');
     const [tags, setTags] = useState<any[]>([]);
+    const [tagFilter, setTagFilter] = useState('');
+    const [showTagModal, setShowTagModal] = useState(false);
+    const [newTagPattern, setNewTagPattern] = useState('');
+    const [newTagName, setNewTagName] = useState('');
+    const [newTagColor, setNewTagColor] = useState('#6366f1');
 
     useEffect(() => {
         let isMounted = true;
@@ -68,6 +73,10 @@ export default function EndpointAnalysisPage() {
         return 'var(--accent-red)';
     };
 
+    const filteredComparisons = tagFilter
+        ? comparisons.filter(item => item.endpoint?.includes(tagFilter))
+        : comparisons;
+
     return (
         <div>
             <div className="page-header">
@@ -88,6 +97,29 @@ export default function EndpointAnalysisPage() {
                         <button className="btn" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)' }} onClick={handleExportPdf}>⬇ PDF</button>
                     </div>
                 </div>
+
+                {/* Tag Filter Chips */}
+                {tags.length > 0 && (
+                    <div style={{ display: 'flex', gap: 8, padding: '12px 16px', flexWrap: 'wrap', alignItems: 'center', borderBottom: '1px solid var(--border-color)' }}>
+                        <span style={{ fontSize: 12, color: 'var(--text-muted)', marginRight: 4 }}>Tags:</span>
+                        <button
+                            className="btn"
+                            onClick={() => setTagFilter('')}
+                            style={{ padding: '3px 10px', fontSize: 11, background: tagFilter === '' ? 'var(--accent-purple)' : 'var(--bg-surface)', color: tagFilter === '' ? '#fff' : 'var(--text-secondary)', border: '1px solid var(--border-color)', borderRadius: 12 }}
+                        >All</button>
+                        {tags.map((t: any) => (
+                            <button
+                                key={t.id}
+                                className="btn"
+                                onClick={() => setTagFilter(t.endpoint_pattern)}
+                                style={{ padding: '3px 10px', fontSize: 11, background: tagFilter === t.endpoint_pattern ? t.color : 'var(--bg-surface)', color: tagFilter === t.endpoint_pattern ? '#fff' : 'var(--text-secondary)', border: `1px solid ${t.color}`, borderRadius: 12 }}
+                            >{t.tag}</button>
+                        ))}
+                        <button className="btn" onClick={() => setShowTagModal(true)} style={{ padding: '3px 10px', fontSize: 11, background: 'var(--bg-surface)', color: 'var(--text-secondary)', border: '1px dashed var(--border-color)', borderRadius: 12, marginLeft: 'auto' }}>
+                            + Manage Tags
+                        </button>
+                    </div>
+                )}
 
                 {/* Filters */}
                 <div className="table-filters">
@@ -130,14 +162,14 @@ export default function EndpointAnalysisPage() {
                         </tr>
                     </thead>
                     <tbody>
-                        {comparisons.length === 0 && isLoaded ? (
+                        {filteredComparisons.length === 0 && isLoaded ? (
                             <tr>
                                 <td colSpan={7} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
                                     No matching comparisons found.
                                 </td>
                             </tr>
                         ) : (
-                            comparisons.map(item => {
+                            filteredComparisons.map(item => {
                                 // Fallbacks for backend properties since list API might vary from full detail
                                 const statusString = item.status || '200 → 200';
                                 const latencyDelta = item.latency_delta_ms || item.latencyDelta || 0;
@@ -201,6 +233,57 @@ export default function EndpointAnalysisPage() {
                     </tbody>
                 </table>
             </div>
+
+            {/* Manage Tags Modal */}
+            {showTagModal && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => setShowTagModal(false)}>
+                    <div className="card" style={{ width: 480, maxHeight: '80vh', overflow: 'auto', padding: 24 }} onClick={e => e.stopPropagation()}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                            <h3 style={{ margin: 0 }}>Manage Endpoint Tags</h3>
+                            <button className="btn" onClick={() => setShowTagModal(false)} style={{ background: 'transparent', border: 'none', fontSize: 18, color: 'var(--text-secondary)', cursor: 'pointer' }}>✕</button>
+                        </div>
+
+                        {/* Add new tag */}
+                        <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+                            <input className="filter-input" placeholder="Pattern (e.g. /api/users)" value={newTagPattern} onChange={e => setNewTagPattern(e.target.value)} style={{ flex: 2 }} />
+                            <input className="filter-input" placeholder="Tag name" value={newTagName} onChange={e => setNewTagName(e.target.value)} style={{ flex: 1 }} />
+                            <input type="color" value={newTagColor} onChange={e => setNewTagColor(e.target.value)} style={{ width: 36, height: 36, border: 'none', cursor: 'pointer', borderRadius: 6, background: 'transparent' }} />
+                            <button className="btn btn-primary" style={{ padding: '6px 12px' }} onClick={async () => {
+                                if (!newTagPattern || !newTagName) return;
+                                try {
+                                    await createEndpointTag(newTagPattern, newTagName, newTagColor);
+                                    const updated = await getEndpointTags();
+                                    setTags(updated);
+                                    setNewTagPattern('');
+                                    setNewTagName('');
+                                    setNewTagColor('#6366f1');
+                                } catch (err) { console.error('Failed to create tag', err); }
+                            }}>Add</button>
+                        </div>
+
+                        {/* Existing tags */}
+                        {tags.length === 0 ? (
+                            <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: 20 }}>No tags yet. Add one above.</p>
+                        ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                {tags.map((t: any) => (
+                                    <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px', background: 'var(--bg-surface)', borderRadius: 8, border: '1px solid var(--border-color)' }}>
+                                        <span style={{ width: 12, height: 12, borderRadius: '50%', background: t.color, flexShrink: 0 }} />
+                                        <span style={{ flex: 1, fontSize: 13, color: 'var(--text-primary)' }}>{t.tag}</span>
+                                        <span style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{t.endpoint_pattern}</span>
+                                        <button className="btn" style={{ padding: '2px 8px', fontSize: 11, background: 'rgba(239,68,68,0.1)', color: 'var(--accent-red)', border: '1px solid rgba(239,68,68,0.3)' }} onClick={async () => {
+                                            try {
+                                                await deleteEndpointTag(t.id);
+                                                setTags(tags.filter((tag: any) => tag.id !== t.id));
+                                            } catch (err) { console.error('Failed to delete tag', err); }
+                                        }}>Delete</button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

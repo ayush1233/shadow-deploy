@@ -14,6 +14,8 @@ export default function ComparisonDetailPage() {
     const [isLoaded, setIsLoaded] = useState(false);
     const [error, setError] = useState('');
     const [isDiffExpanded, setIsDiffExpanded] = useState(false);
+    const [splitView, setSplitView] = useState(true);
+    const [showDiffOnly, setShowDiffOnly] = useState(false);
 
     useEffect(() => {
         let isMounted = true;
@@ -83,7 +85,6 @@ export default function ComparisonDetailPage() {
             case 'BLOCK_DEPLOYMENT':
                 return { background: 'rgba(239, 68, 68, 0.12)', color: 'var(--accent-red)', border: '1px solid rgba(239, 68, 68, 0.3)' };
             default:
-                return {};
                 return {};
         }
     };
@@ -225,14 +226,34 @@ export default function ComparisonDetailPage() {
             {/* Expandable Diff Viewer Toggle */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <h3 style={{ margin: 0, fontSize: 16, color: 'var(--text-primary)' }}>Raw Payloads</h3>
-                <button
-                    className="btn btn-secondary"
-                    onClick={() => setIsDiffExpanded(!isDiffExpanded)}
-                    style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', display: 'flex', gap: 8, alignItems: 'center' }}
-                >
-                    {isDiffExpanded ? 'Hide Full Diff' : 'View Full Diff'}
-                    <motion.div animate={{ rotate: isDiffExpanded ? 180 : 0 }}>▼</motion.div>
-                </button>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    {isDiffExpanded && (
+                        <>
+                            <button
+                                className="btn btn-secondary"
+                                onClick={() => setSplitView(!splitView)}
+                                style={{ background: splitView ? 'var(--accent-purple)' : 'var(--bg-card)', border: '1px solid var(--border-color)', fontSize: 12, padding: '6px 12px', color: splitView ? '#fff' : 'var(--text-secondary)' }}
+                            >
+                                {splitView ? 'Side-by-Side' : 'Unified'}
+                            </button>
+                            <button
+                                className="btn btn-secondary"
+                                onClick={() => setShowDiffOnly(!showDiffOnly)}
+                                style={{ background: showDiffOnly ? 'var(--accent-purple)' : 'var(--bg-card)', border: '1px solid var(--border-color)', fontSize: 12, padding: '6px 12px', color: showDiffOnly ? '#fff' : 'var(--text-secondary)' }}
+                            >
+                                {showDiffOnly ? 'Changes Only' : 'Full Content'}
+                            </button>
+                        </>
+                    )}
+                    <button
+                        className="btn btn-secondary"
+                        onClick={() => setIsDiffExpanded(!isDiffExpanded)}
+                        style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', display: 'flex', gap: 8, alignItems: 'center' }}
+                    >
+                        {isDiffExpanded ? 'Hide Full Diff' : 'View Full Diff'}
+                        <motion.div animate={{ rotate: isDiffExpanded ? 180 : 0 }}>▼</motion.div>
+                    </button>
+                </div>
             </div>
 
             <AnimatePresence>
@@ -248,11 +269,11 @@ export default function ComparisonDetailPage() {
                             <ReactDiffViewer
                                 oldValue={prodBodyRaw}
                                 newValue={shadowBodyRaw}
-                                splitView={true}
+                                splitView={splitView}
                                 leftTitle="Production (v1)"
                                 rightTitle="Shadow (v2 candidate)"
                                 useDarkTheme={true}
-                                showDiffOnly={!isDiffExpanded}
+                                showDiffOnly={showDiffOnly}
                                 styles={{
                                     variables: {
                                         dark: {

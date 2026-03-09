@@ -1,10 +1,13 @@
+# Force bash shell for consistent behavior on Windows (Git Bash) and Unix
+SHELL := bash
+
 .PHONY: help setup dev start stop restart logs test clean health build status db-migrate configure logs-api logs-ai logs-comparison logs-ingestion
 
 # Default target
 help: ## Show this help message
-	@echo "Shadow Deploy Platform — Available Commands"
+	@echo "Shadow Deploy Platform - Available Commands"
 	@echo "============================================="
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
 
 setup: ## Run interactive setup wizard
 	@bash setup.sh
@@ -19,7 +22,8 @@ stop: ## Stop all services
 	docker-compose down
 
 restart: ## Restart all services
-	docker-compose down && docker-compose up -d --build
+	docker-compose down
+	docker-compose up -d --build
 
 logs: ## Tail logs from all services
 	docker-compose logs -f --tail=100
@@ -45,7 +49,7 @@ health: ## Check health of all services
 
 clean: ## Remove all containers, volumes, and build artifacts
 	docker-compose down -v --remove-orphans
-	cd dashboard && rm -rf node_modules dist
+	-rm -rf dashboard/node_modules dashboard/dist
 	@echo "Cleaned up successfully"
 
 build: ## Build all Docker images without starting
@@ -57,7 +61,6 @@ status: ## Show running containers and their ports
 db-migrate: ## Print instructions to run Supabase schema migration
 	@echo "Copy the contents of dashboard/supabase-schema.sql"
 	@echo "Go to Supabase Dashboard -> SQL Editor -> New Query -> Paste -> Run"
-	@cat dashboard/supabase-schema.sql
 
 configure: ## Configure NGINX via natural language (usage: make configure PROMPT="...")
 	@python cli/configure-proxy.py "$(PROMPT)"

@@ -236,6 +236,9 @@ services:
     build:
       context: ./dashboard
       dockerfile: Dockerfile
+      args:
+        VITE_SUPABASE_URL: "https://likjiuylgndoedpkzxhb.supabase.co"
+        VITE_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
     container_name: shadow-dashboard
     ports:
       - "3002:80"
@@ -249,7 +252,7 @@ services:
       context: ./sample-apis/v1
     container_name: shadow-sample-v1
     ports:
-      - "3000:3000"
+      - "3003:3000"
     networks:
       - shadow-net
 
@@ -258,7 +261,7 @@ services:
       context: ./sample-apis/v2
     container_name: shadow-sample-v2
     ports:
-      - "4000:4000"
+      - "4001:4000"
     networks:
       - shadow-net
 

@@ -18,6 +18,7 @@ export default function OverviewPage() {
     const [configPrompt, setConfigPrompt] = useState('');
     const [configStatus, setConfigStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
     const [configMessage, setConfigMessage] = useState('');
+    const [trendRange, setTrendRange] = useState(7);
 
     const handleConfigure = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -40,7 +41,7 @@ export default function OverviewPage() {
             try {
                 const [summaryRes, trendRes] = await Promise.all([
                     getMetricsSummary(),
-                    getRiskTrend(7)
+                    getRiskTrend(trendRange)
                 ]);
                 setMetrics(summaryRes.data);
                 setTrendData(trendRes);
@@ -51,7 +52,7 @@ export default function OverviewPage() {
             }
         };
         fetchMetrics();
-    }, [navigate]);
+    }, [navigate, trendRange]);
 
     const handleExportCsv = () => {
         if (!trendData || trendData.length === 0) return;
@@ -264,8 +265,30 @@ export default function OverviewPage() {
             {trendData && trendData.length > 0 && (
                 <div className="charts-grid" style={{ gridTemplateColumns: '1fr', marginBottom: 24 }}>
                     <div className="chart-card glow-border" style={{ position: 'relative' }}>
-                        <div className="card-header">
-                            <span className="card-title">7-Day Risk vs Pass Rate Trend</span>
+                        <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span className="card-title">Risk vs Pass Rate Trend</span>
+                            <div style={{ display: 'flex', gap: 4 }}>
+                                {[
+                                    { label: '24h', value: 1 },
+                                    { label: '7d', value: 7 },
+                                    { label: '30d', value: 30 },
+                                ].map(opt => (
+                                    <button
+                                        key={opt.value}
+                                        className="btn"
+                                        onClick={() => setTrendRange(opt.value)}
+                                        style={{
+                                            padding: '4px 12px',
+                                            fontSize: 12,
+                                            background: trendRange === opt.value ? 'var(--accent-purple)' : 'var(--bg-surface)',
+                                            color: trendRange === opt.value ? '#fff' : 'var(--text-secondary)',
+                                            border: trendRange === opt.value ? 'none' : '1px solid var(--border-color)',
+                                        }}
+                                    >
+                                        {opt.label}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                         <ResponsiveContainer width="100%" height={280}>
                             <AreaChart data={trendData}>
