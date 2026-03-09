@@ -32,6 +32,40 @@ function Test-Command {
     }
 }
 
+function Test-CommandVersion {
+    param(
+        [string]$Command,
+        [string]$Name,
+        [int]$MinMajor,
+        [string]$VersionFlag = "--version"
+    )
+    if (-not (Get-Command $Command -ErrorAction SilentlyContinue)) {
+        Write-Host "  [MISSING] $Name" -ForegroundColor Red
+        return $false
+    }
+    try {
+        $versionOutput = & $Command $VersionFlag 2>&1 | Select-Object -First 1
+        $versionStr = [string]$versionOutput
+        if ($versionStr -match '(\d+\.\d+)') {
+            $ver = $matches[1]
+            $major = [int]($ver.Split('.')[0])
+            if ($major -ge $MinMajor) {
+                Write-Host "  [OK] $Name (v$ver)" -ForegroundColor Green
+                return $true
+            } else {
+                Write-Host "  [OUTDATED] $Name (v$ver, need v$MinMajor+)" -ForegroundColor Yellow
+                return $false
+            }
+        } else {
+            Write-Host "  [OK] $Name" -ForegroundColor Green
+            return $true
+        }
+    } catch {
+        Write-Host "  [MISSING] $Name" -ForegroundColor Red
+        return $false
+    }
+}
+
 Show-Banner
 
 # ── Step 1: Check Prerequisites ──
@@ -40,7 +74,7 @@ Write-Color "  ---------------------------------" DarkGray
 
 $CriticalMissing = $false
 
-if (-not (Test-Command "docker" "Docker")) { $CriticalMissing = $true }
+if (-not (Test-CommandVersion "docker" "Docker" 20)) { $CriticalMissing = $true }
 if (-not (Test-Command "docker-compose" "Docker Compose")) {
     try {
         docker compose version 2>$null | Out-Null
@@ -49,11 +83,11 @@ if (-not (Test-Command "docker-compose" "Docker Compose")) {
         $CriticalMissing = $true
     }
 }
-if (-not (Test-Command "node" "Node.js")) { $CriticalMissing = $true }
+if (-not (Test-CommandVersion "node" "Node.js" 18)) { $CriticalMissing = $true }
 
 # Optional
-Test-Command "java" "Java (optional)" | Out-Null
-Test-Command "python" "Python (optional)" | Out-Null
+Test-CommandVersion "java" "Java (optional)" 17 "-version" | Out-Null
+Test-CommandVersion "python" "Python (optional)" 3 | Out-Null
 
 Write-Host ""
 
