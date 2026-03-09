@@ -10,7 +10,11 @@ help: ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
 
 setup: ## Run interactive setup wizard
+ifeq ($(OS),Windows_NT)
+	@powershell -ExecutionPolicy Bypass -File setup.ps1
+else
 	@bash setup.sh
+endif
 
 dev: ## Start dashboard in dev mode (hot reload)
 	cd dashboard && npm install && npm run dev

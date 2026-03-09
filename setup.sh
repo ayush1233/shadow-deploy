@@ -33,10 +33,17 @@ check_command() {
     if command -v "$1" &> /dev/null; then
         echo -e "  ${GREEN}[OK]${NC} $2"
         return 0
-    else
-        echo -e "  ${RED}[MISSING]${NC} $2"
-        return 1
     fi
+    local uname_s
+    uname_s="$(uname -s 2>/dev/null)"
+    if [[ "$uname_s" == MINGW* ]] || [[ "$uname_s" == MSYS* ]] || [[ -n "${WINDIR:-}" ]]; then
+        if where.exe "$1" &> /dev/null; then
+            echo -e "  ${GREEN}[OK]${NC} $2"
+            return 0
+        fi
+    fi
+    echo -e "  ${RED}[MISSING]${NC} $2"
+    return 1
 }
 
 check_version() {
@@ -45,13 +52,26 @@ check_version() {
     local min_major="$3"
     local version_flag="${4:---version}"
 
-    if ! command -v "$cmd" &> /dev/null; then
+    local cmd_path
+    if command -v "$cmd" &> /dev/null; then
+        cmd_path="$cmd"
+    else
+        local uname_s
+        uname_s="$(uname -s 2>/dev/null)"
+        if [[ "$uname_s" == MINGW* ]] || [[ "$uname_s" == MSYS* ]] || [[ -n "${WINDIR:-}" ]]; then
+            cmd_path=$(where.exe "$cmd" 2>/dev/null | head -1 || true)
+        else
+            cmd_path=""
+        fi
+    fi
+
+    if [[ -z "$cmd_path" ]]; then
         echo -e "  ${RED}[MISSING]${NC} $name"
         return 1
     fi
 
     local version
-    version=$($cmd $version_flag 2>&1 | head -1 | grep -oP '\d+\.\d+' | head -1)
+    version=$("$cmd_path" $version_flag 2>&1 | head -1 | grep -oE '[0-9]+\.[0-9]+' | head -1)
     local major
     major=$(echo "$version" | cut -d. -f1)
 
