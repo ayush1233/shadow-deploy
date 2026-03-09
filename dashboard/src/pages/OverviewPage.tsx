@@ -121,15 +121,28 @@ export default function OverviewPage() {
     }));
 
     return (
-        <div style={{ opacity: isLoaded ? 1 : 0, transition: 'opacity 0.5s ease' }}>
-            <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div>
-                    <h2>Deployment Overview</h2>
-                    <p>Live Shadow API validation metrics</p>
-                </div>
-                <div style={{ display: 'flex', gap: 12 }}>
-                    <button className="btn" style={{ background: 'var(--bg-surface)' }} onClick={handleExportCsv}>⬇ CSV Report</button>
-                    <button className="btn" style={{ background: 'var(--bg-surface)' }} onClick={handleExportPdf}>⬇ PDF Report</button>
+        <div style={{ opacity: isLoaded ? 1 : 0, transition: 'opacity 0.5s ease', animation: 'fadeIn 0.5s ease' }}>
+            {/* Welcome header */}
+            <div style={{ marginBottom: 28, padding: '20px 24px', background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-sm), var(--shadow-inset-glass)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                        <h2 style={{ fontSize: 22, fontWeight: 500, color: 'var(--text-primary)', letterSpacing: '-0.03em', marginBottom: 4 }}>
+                            Deployment Overview
+                        </h2>
+                        <p style={{ color: 'var(--text-secondary)', fontSize: 13 }}>
+                            Live Shadow API validation metrics — {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                        </p>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                        <button className="btn btn-secondary" onClick={handleExportCsv}>
+                            <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1v8M3 6l3.5 3.5L10 6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/><path d="M1 10v1.5a.5.5 0 00.5.5h10a.5.5 0 00.5-.5V10" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg>
+                            CSV Report
+                        </button>
+                        <button className="btn btn-secondary" onClick={handleExportPdf}>
+                            <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1v8M3 6l3.5 3.5L10 6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/><path d="M1 10v1.5a.5.5 0 00.5.5h10a.5.5 0 00.5-.5V10" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg>
+                            PDF Report
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -345,7 +358,7 @@ export default function OverviewPage() {
                                 type="text"
                                 value={configPrompt}
                                 onChange={e => setConfigPrompt(e.target.value)}
-                                placeholder="e.g., Route production traffic to port 3000 and mirror shadow traffic to port 4000"
+                                placeholder="e.g., Mirror 50% of /api/users traffic to shadow v2..."
                                 className="ai-input"
                                 disabled={configStatus === 'loading'}
                             />

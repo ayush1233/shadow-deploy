@@ -142,7 +142,38 @@ export default function TopologyPage() {
             </div>
 
             {/* ── SVG Diagram ── */}
-            <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+            <div className="card" style={{ padding: 0, overflow: 'hidden', position: 'relative' }}>
+                {/* Floating legend panel */}
+                <div style={{
+                    position: 'absolute',
+                    top: 16,
+                    right: 16,
+                    zIndex: 10,
+                    background: 'rgba(10, 10, 10, 0.92)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: 'var(--radius-md)',
+                    padding: '12px 14px',
+                    backdropFilter: 'blur(8px)',
+                    minWidth: 160,
+                }}>
+                    <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 8, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Legend</div>
+                    {[
+                        { color: lineColors.primary, label: 'Production', dash: false },
+                        { color: lineColors.mirror, label: 'Mirror', dash: true },
+                        { color: lineColors.async, label: 'Async Stream', dash: true },
+                        { color: lineColors.data, label: 'Data / Query', dash: false },
+                    ].map(l => (
+                        <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                            <div style={{
+                                width: 20, height: 2, borderRadius: 1,
+                                background: l.dash ? 'transparent' : l.color,
+                                ...(l.dash ? { backgroundImage: `repeating-linear-gradient(90deg, ${l.color} 0 5px, transparent 5px 8px)` } : {}),
+                                flexShrink: 0,
+                            }} />
+                            <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{l.label}</span>
+                        </div>
+                    ))}
+                </div>
                 <svg width="100%" viewBox={`0 0 ${svgW} ${svgH}`} style={{ display: 'block' }}>
                     <defs>
                         <filter id="glow"><feGaussianBlur stdDeviation="3" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>

@@ -89,7 +89,7 @@ export default function EndpointAnalysisPage() {
                     <div>
                         <span className="card-title">Comparison Results</span>
                         <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8 }}>
-                            {isLoaded ? `${totalResults} results` : 'Loading...'}
+                            {isLoaded ? `Showing ${filteredComparisons.length} of ${totalResults} results` : 'Loading...'}
                         </span>
                     </div>
                     <div style={{ display: 'flex', gap: 12 }}>
@@ -126,7 +126,7 @@ export default function EndpointAnalysisPage() {
                     <input
                         type="text"
                         className="filter-input"
-                        placeholder="🔍 Filter by endpoint..."
+                        placeholder="Filter by endpoint..."
                         value={endpointFilter}
                         onChange={e => setEndpointFilter(e.target.value)}
                         style={{ minWidth: 220 }}
@@ -146,6 +146,16 @@ export default function EndpointAnalysisPage() {
                         <option value="24h">Last 24 hours</option>
                         <option value="7d">Last 7 days</option>
                     </select>
+                    {(endpointFilter || severityFilter !== 'all' || tagFilter) && (
+                        <button
+                            className="btn btn-secondary"
+                            style={{ padding: '6px 12px', fontSize: 12 }}
+                            onClick={() => { setEndpointFilter(''); setSeverityFilter('all'); setTagFilter(''); }}
+                        >
+                            <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1 1l8 8M9 1L1 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                            Clear filters
+                        </button>
+                    )}
                 </div>
 
                 {/* Table */}
@@ -180,7 +190,12 @@ export default function EndpointAnalysisPage() {
                                 return (
                                     <tr key={item.request_id || item.requestId} onClick={() => navigate(`/comparison/${item.request_id || item.requestId}`)}>
                                         <td className="endpoint-cell">
-                                            {item.endpoint}
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                                <span className={`badge badge-${(item.method || 'GET').toLowerCase()}`}>
+                                                    {item.method || 'GET'}
+                                                </span>
+                                                <span>{item.endpoint}</span>
+                                            </div>
                                             {tags.filter(t => item.endpoint.includes(t.endpoint_pattern)).map((t: any) => (
                                                 <span key={t.id} style={{ marginLeft: 8, padding: '2px 8px', borderRadius: 12, fontSize: 10, background: t.color, color: '#fff' }}>
                                                     {t.tag}

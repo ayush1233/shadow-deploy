@@ -51,16 +51,36 @@ export default function LoginPage() {
             justifyContent: 'center',
             background: 'var(--bg-primary)',
             fontFamily: 'var(--font-family)',
-            padding: 24
+            padding: 24,
+            position: 'relative',
+            overflow: 'hidden'
         }}>
-            <div className="card" style={{ width: '100%', maxWidth: 400, padding: 40 }}>
+            {/* Animated gradient glow */}
+            <div style={{
+                position: 'absolute',
+                width: 400,
+                height: 400,
+                borderRadius: '50%',
+                background: 'radial-gradient(circle, rgba(167, 139, 250, 0.15) 0%, transparent 70%)',
+                filter: 'blur(60px)',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                pointerEvents: 'none',
+                animation: 'pulse-glow 4s ease-in-out infinite',
+            }} />
+            <div className="card" style={{ width: '100%', maxWidth: 400, padding: 40, position: 'relative', zIndex: 1 }}>
                 <div style={{ textAlign: 'center', marginBottom: 32 }}>
-                    <div className="sidebar-logo-icon" style={{ margin: '0 auto 16px', width: 48, height: 48, fontSize: 24 }}>⚡</div>
+                    <div className="sidebar-logo-icon" style={{ margin: '0 auto 16px', width: 48, height: 48, fontSize: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M9 2L4 9H8L7 14L12 7H8L9 2Z" fill="currentColor"/>
+                        </svg>
+                    </div>
                     <h1 style={{ fontSize: 20, fontWeight: 500, color: 'var(--text-primary)', letterSpacing: '-0.02em', marginBottom: 8 }}>
                         Shadow API Platform
                     </h1>
                     <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>
-                        Sign in to access deployment analytics
+                        Enterprise-grade shadow traffic validation
                     </p>
                 </div>
 
@@ -86,7 +106,7 @@ export default function LoginPage() {
                                 outline: 'none',
                                 transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
                             }}
-                            onFocus={(e) => { e.target.style.borderColor = 'var(--text-secondary)'; e.target.style.boxShadow = '0 0 0 1px var(--text-secondary)'; }}
+                            onFocus={(e) => { e.target.style.borderColor = 'var(--accent-purple)'; e.target.style.boxShadow = '0 0 0 3px rgba(167, 139, 250, 0.1)'; }}
                             onBlur={(e) => { e.target.style.borderColor = 'var(--border-color)'; e.target.style.boxShadow = 'var(--shadow-inset-glass)'; }}
                         />
                     </div>
@@ -111,19 +131,21 @@ export default function LoginPage() {
                                 outline: 'none',
                                 transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
                             }}
-                            onFocus={(e) => { e.target.style.borderColor = 'var(--text-secondary)'; e.target.style.boxShadow = '0 0 0 1px var(--text-secondary)'; }}
+                            onFocus={(e) => { e.target.style.borderColor = 'var(--accent-purple)'; e.target.style.boxShadow = '0 0 0 3px rgba(167, 139, 250, 0.1)'; }}
                             onBlur={(e) => { e.target.style.borderColor = 'var(--border-color)'; e.target.style.boxShadow = 'var(--shadow-inset-glass)'; }}
                         />
                     </div>
 
                     {status === 'error' && (
-                        <div style={{ color: 'var(--accent-red)', fontSize: 13, textAlign: 'center', background: 'rgba(239, 68, 68, 0.1)', padding: '8px', borderRadius: 6, border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+                        <div style={{ color: 'var(--accent-red)', fontSize: 13, background: 'rgba(248, 113, 113, 0.08)', padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(248, 113, 113, 0.25)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="currentColor" strokeWidth="1.4"/><path d="M7 4v3.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/><circle cx="7" cy="10" r="0.8" fill="currentColor"/></svg>
                             {errorMsg}
                         </div>
                     )}
 
                     {status === 'signup' && (
-                        <div style={{ color: 'var(--accent-green)', fontSize: 13, textAlign: 'center', background: 'rgba(16, 185, 129, 0.1)', padding: '8px', borderRadius: 6, border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+                        <div style={{ color: 'var(--accent-green)', fontSize: 13, background: 'rgba(52, 211, 153, 0.08)', padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(52, 211, 153, 0.25)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="currentColor" strokeWidth="1.4"/><path d="M4 7l2.5 2.5L10 5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
                             {successMsg}
                         </div>
                     )}
@@ -149,16 +171,12 @@ export default function LoginPage() {
                         type="button"
                         onClick={handleSignUp}
                         disabled={status === 'loading'}
+                        className="btn btn-outline"
                         style={{
                             width: '100%',
+                            justifyContent: 'center',
                             padding: '10px',
-                            background: 'transparent',
-                            border: '1px solid var(--border-color)',
-                            borderRadius: 8,
-                            color: 'var(--text-secondary)',
-                            fontSize: 13,
-                            cursor: 'pointer',
-                            transition: 'all 0.2s ease'
+                            fontSize: 13
                         }}
                     >
                         Create Account
