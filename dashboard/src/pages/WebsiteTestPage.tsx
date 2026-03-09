@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { runWebsiteTest } from '../services/api';
 
 export default function WebsiteTestPage() {
-    const [prodUrl, setProdUrl] = useState('http://localhost:3000');
-    const [shadowUrl, setShadowUrl] = useState('http://localhost:4000');
-    const [paths, setPaths] = useState<string[]>(['/', '/api/health']);
+    const [prodUrl, setProdUrl] = useState('http://host.docker.internal:3000');
+    const [shadowUrl, setShadowUrl] = useState('http://host.docker.internal:4000');
+    const [paths, setPaths] = useState<string[]>(['/api/tickets/', '/api/tickets/1/', '/api/tickets/stats/']);
     const [newPath, setNewPath] = useState('');
     const [isTesting, setIsTesting] = useState(false);
     const [results, setResults] = useState<any[]>([]);

@@ -184,7 +184,7 @@ export default function QuickConfigurePage() {
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px', background: 'var(--bg-body)', borderRadius: 8 }}>
                                 <span style={{ color: 'var(--text-secondary)' }}>Dashboard:</span>
-                                <span style={{ color: 'var(--accent-purple)' }}>3002</span>
+                                <span style={{ color: 'var(--accent-purple)' }}>3004</span>
                             </div>
                         </div>
 

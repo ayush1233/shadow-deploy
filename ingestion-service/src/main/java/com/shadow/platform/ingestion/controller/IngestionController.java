@@ -158,6 +158,23 @@ public class IngestionController {
         event.setTimestamp(Instant.now());
         event.setEndpoint(headers.getOrDefault("x-original-uri", "/unknown"));
         event.setMethod(headers.getOrDefault("x-original-method", "GET"));
+
+        // Extract response status and timing from NGINX headers
+        String responseStatus = headers.get("x-response-status");
+        if (responseStatus != null && !responseStatus.isEmpty()) {
+            try {
+                event.setResponseStatus(Integer.parseInt(responseStatus.trim()));
+            } catch (NumberFormatException ignored) {}
+        }
+        String responseTime = headers.get("x-response-time");
+        if (responseTime != null && !responseTime.isEmpty()) {
+            try {
+                // NGINX sends upstream_response_time in seconds (e.g., "0.015")
+                double seconds = Double.parseDouble(responseTime.trim());
+                event.setResponseTimeMs((long) (seconds * 1000));
+            } catch (NumberFormatException ignored) {}
+        }
+
         return event;
     }
 }

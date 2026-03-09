@@ -12,7 +12,7 @@ export default function EndpointAnalysisPage() {
 
     const [endpointFilter, setEndpointFilter] = useState('');
     const [severityFilter, setSeverityFilter] = useState('all');
-    const [timeRange, setTimeRange] = useState('1h');
+    const [timeRange, setTimeRange] = useState('7d');
     const [tags, setTags] = useState<any[]>([]);
     const [tagFilter, setTagFilter] = useState('');
     const [showTagModal, setShowTagModal] = useState(false);
@@ -93,8 +93,8 @@ export default function EndpointAnalysisPage() {
                         </span>
                     </div>
                     <div style={{ display: 'flex', gap: 12 }}>
-                        <button className="btn" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)' }} onClick={handleExportCsv}>⬇ CSV</button>
-                        <button className="btn" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)' }} onClick={handleExportPdf}>⬇ PDF</button>
+                        <button className="btn btn-secondary" onClick={handleExportCsv}>⬇ CSV</button>
+                        <button className="btn btn-secondary" onClick={handleExportPdf}>⬇ PDF</button>
                     </div>
                 </div>
 
@@ -149,7 +149,7 @@ export default function EndpointAnalysisPage() {
                     {(endpointFilter || severityFilter !== 'all' || tagFilter) && (
                         <button
                             className="btn btn-secondary"
-                            style={{ padding: '6px 12px', fontSize: 12 }}
+                            style={{ padding: '6px 12px', fontSize: 12, color: 'var(--text-primary)' }}
                             onClick={() => { setEndpointFilter(''); setSeverityFilter('all'); setTagFilter(''); }}
                         >
                             <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1 1l8 8M9 1L1 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
@@ -239,7 +239,7 @@ export default function EndpointAnalysisPage() {
                                             </span>
                                         </td>
                                         <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>
-                                            {(item.created_at || item.timestamp) ? new Date(item.created_at || item.timestamp).toLocaleTimeString() : 'N/A'}
+                                            {(item.timestamp || item.created_at) ? new Date(item.timestamp || item.created_at).toLocaleTimeString() : 'N/A'}
                                         </td>
                                     </tr>
                                 )

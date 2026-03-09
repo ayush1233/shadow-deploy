@@ -33,7 +33,7 @@ export const getMetricsSummary = async () => {
     const { data: comparisons, error } = await supabase
         .from('comparisons')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('timestamp', { ascending: false });
 
     if (error) throw error;
 
@@ -101,7 +101,7 @@ export const listComparisons = async (params: {
     let query = supabase
         .from('comparisons')
         .select('*', { count: 'exact' })
-        .order('created_at', { ascending: false });
+        .order('timestamp', { ascending: false });
 
     if (params.endpoint) {
         query = query.ilike('endpoint', `%${params.endpoint}%`);
@@ -114,7 +114,7 @@ export const listComparisons = async (params: {
         const rangeMap: Record<string, number> = { '15m': 15, '1h': 60, '6h': 360, '24h': 1440, '7d': 10080 };
         const minutes = rangeMap[params.timeRange] || 60;
         const since = new Date(now.getTime() - minutes * 60 * 1000);
-        query = query.gte('created_at', since.toISOString());
+        query = query.gte('timestamp', since.toISOString());
     }
 
     const size = params.size || 20;
@@ -149,7 +149,7 @@ export const getComparison = async (requestId: string) => {
         data: {
             request_id: data.request_id,
             tenant_id: data.tenant_id,
-            timestamp: data.created_at,
+            timestamp: data.timestamp || data.created_at,
             endpoint: data.endpoint,
             method: data.method,
             production: {
@@ -175,7 +175,17 @@ export const getComparison = async (requestId: string) => {
                 ai_explanation: data.ai_explanation,
                 recommended_action: data.recommended_action,
                 field_diffs: data.field_diffs || [],
-                explanation: data.explanation || null,
+                explanation: data.explanation || (data.explanation_summary ? {
+                    summary: data.explanation_summary,
+                    details: data.explanation_details || data.explanation_summary,
+                    impact: data.explanation_impact || data.severity || 'low',
+                    confidence: data.explanation_confidence || data.similarity_score || 0.5,
+                } : data.ai_explanation ? {
+                    summary: data.ai_explanation,
+                    details: data.ai_explanation,
+                    impact: data.severity || 'low',
+                    confidence: data.similarity_score || 0.5,
+                } : null),
             },
         },
     };
@@ -203,16 +213,16 @@ export const getRiskTrend = async (days: number = 7) => {
     // Select specific needed fields
     const { data, error } = await supabase
         .from('comparisons')
-        .select('created_at, risk_score, severity, deterministic_pass')
-        .gte('created_at', since.toISOString())
-        .order('created_at', { ascending: true });
+        .select('timestamp, risk_score, severity, deterministic_pass')
+        .gte('timestamp', since.toISOString())
+        .order('timestamp', { ascending: true });
 
     if (error) throw error;
 
     // Group by day for simple stats
     const grouped: Record<string, { count: number, riskSum: number, passes: number }> = {};
     (data || []).forEach(row => {
-        const date = row.created_at.substring(0, 10);
+        const date = row.timestamp.substring(0, 10);
         if (!grouped[date]) grouped[date] = { count: 0, riskSum: 0, passes: 0 };
         grouped[date].count++;
         grouped[date].riskSum += Number(row.risk_score || 0);

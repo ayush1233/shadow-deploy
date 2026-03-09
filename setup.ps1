@@ -1,7 +1,7 @@
-# ═══════════════════════════════════════════════
-# Shadow API Validation Platform — Setup Wizard
+# ===============================================
+# Shadow API Validation Platform -- Setup Wizard
 # PowerShell Edition
-# ═══════════════════════════════════════════════
+# ===============================================
 
 $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -13,9 +13,9 @@ function Write-Color {
 
 function Show-Banner {
     Write-Host ""
-    Write-Color "  ╔══════════════════════════════════════════════════════╗" Magenta
-    Write-Color "  ║   Shadow API Validation Platform — Setup Wizard     ║" Magenta
-    Write-Color "  ╚══════════════════════════════════════════════════════╝" Magenta
+    Write-Color "  +======================================================+" Magenta
+    Write-Color "  |   Shadow API Validation Platform -- Setup Wizard      |" Magenta
+    Write-Color "  +======================================================+" Magenta
     Write-Host ""
     Write-Color "  One-command setup for the entire platform" DarkGray
     Write-Host ""
@@ -46,16 +46,16 @@ function Test-CommandVersion {
     try {
         $versionOutput = & $Command $VersionFlag 2>&1 | Select-Object -First 1
         $versionStr = [string]$versionOutput
-        if ($versionStr -match '(+
-)') {
+        $pattern = '(\d+\.\d+[\.\d]*)'
+        if ($versionStr -match $pattern) {
             $ver = $matches[1]
             $major = [int]($ver.Split('.')[0])
             if ($major -ge $MinMajor) {
                 Write-Host "  [OK] $Name (v$ver)" -ForegroundColor Green
                 return $true
             } else {
-                $msg = "  [OUTDATED] " + $Name + " (v" + $ver + ", need v" + $MinMajor + "+)"
-                Write-Host $msg -ForegroundColor Yellow
+                $outdatedMsg = "  [OUTDATED] $Name (v$ver, need v$MinMajor or higher)"
+                Write-Host $outdatedMsg -ForegroundColor Yellow
                 return $false
             }
         } else {
@@ -70,7 +70,7 @@ function Test-CommandVersion {
 
 Show-Banner
 
-# ── Step 1: Check Prerequisites ──
+# -- Step 1: Check Prerequisites --
 Write-Color "  Step 1: Checking Prerequisites" Cyan
 Write-Color "  ---------------------------------" DarkGray
 
@@ -105,7 +105,7 @@ if ($CriticalMissing) {
     }
 }
 
-# ── Step 2: Interactive Configuration ──
+# -- Step 2: Interactive Configuration --
 Write-Color "  Step 2: Platform Configuration" Cyan
 Write-Color "  ---------------------------------" DarkGray
 
@@ -124,7 +124,7 @@ $SupabaseDbPasswordPlain = [Runtime.InteropServices.Marshal]::PtrToStringAuto([R
 
 Write-Host ""
 
-# ── Step 3: Generate Configuration Files ──
+# -- Step 3: Generate Configuration Files --
 Write-Color "  Step 3: Generating Configuration" Cyan
 Write-Color "  ---------------------------------" DarkGray
 
@@ -144,7 +144,7 @@ $envContent += '# AI Service' + $nl
 $envContent += 'GEMINI_API_KEY=' + $GeminiApiKeyPlain + $nl
 $envContent += $nl
 $envContent += '# Service Ports - change if conflicts' + $nl
-$envContent += 'DASHBOARD_PORT=3000' + $nl
+$envContent += 'DASHBOARD_PORT=3004' + $nl
 $envContent += 'NGINX_PROXY_PORT=8080' + $nl
 $envContent += 'API_SERVICE_PORT=8083' + $nl
 $envContent += 'AI_SERVICE_PORT=8000' + $nl
@@ -190,7 +190,7 @@ Write-Host "  [OK] Generated dashboard/src/services/supabase.ts" -ForegroundColo
 
 Write-Host ""
 
-# ── Step 4: Database Migration ──
+# -- Step 4: Database Migration --
 $RunMigrate = Read-Host "  Run Supabase schema migration now? [y/N]"
 if ($RunMigrate -eq "y" -or $RunMigrate -eq "Y") {
     Write-Host ""
@@ -202,7 +202,7 @@ if ($RunMigrate -eq "y" -or $RunMigrate -eq "Y") {
     Read-Host "  Press Enter when done"
 }
 
-# ── Step 5: Start Services ──
+# -- Step 5: Start Services --
 Write-Host ""
 $StartServices = Read-Host "  Start all services now? [Y/n]"
 if ([string]::IsNullOrWhiteSpace($StartServices)) { $StartServices = "Y" }
@@ -218,13 +218,13 @@ if ($StartServices -eq "y" -or $StartServices -eq "Y") {
     python cli/healthcheck.py --wait --timeout 120
 }
 
-# ── Summary ──
+# -- Summary --
 Write-Host ""
 Write-Color "  Setup Complete!" Green
 Write-Color "  =========================================" DarkGray
 Write-Host ""
 Write-Color "  Service URLs:" White
-Write-Host "  Dashboard:          " -NoNewLine; Write-Color "http://localhost:3000" Cyan
+Write-Host "  Dashboard:          " -NoNewLine; Write-Color "http://localhost:3004" Cyan
 Write-Host "  NGINX Proxy:        " -NoNewLine; Write-Color "http://localhost:8080" Cyan
 Write-Host "  API Service:        " -NoNewLine; Write-Color "http://localhost:8083" Cyan
 Write-Host "  AI Service:         " -NoNewLine; Write-Color "http://localhost:8005" Cyan

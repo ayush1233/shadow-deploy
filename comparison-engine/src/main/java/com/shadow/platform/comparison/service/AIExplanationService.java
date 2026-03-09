@@ -78,7 +78,7 @@ public class AIExplanationService {
                     "generationConfig", Map.of("responseMimeType", "application/json"));
 
             JsonNode response = webClient.post()
-                    .uri(uriBuilder -> uriBuilder.path("/v1beta/models/gemini-1.5-flash:generateContent")
+                    .uri(uriBuilder -> uriBuilder.path("/v1beta/models/gemini-2.0-flash:generateContent")
                             .queryParam("key", geminiApiKey)
                             .build())
                     .contentType(MediaType.APPLICATION_JSON)

@@ -160,7 +160,7 @@ SUPABASE_DB_PASSWORD=${SUPABASE_DB_PASSWORD}
 GEMINI_API_KEY=${GEMINI_API_KEY}
 
 # Service Ports (change if conflicts)
-DASHBOARD_PORT=3000
+DASHBOARD_PORT=3004
 NGINX_PROXY_PORT=8080
 API_SERVICE_PORT=8083
 AI_SERVICE_PORT=8000
@@ -229,7 +229,7 @@ echo -e "${GREEN}${BOLD}  Setup Complete!${NC}"
 echo -e "  ${DIM}═════════════════════════════════════════${NC}"
 echo ""
 echo -e "  ${BOLD}Service URLs:${NC}"
-echo -e "  ${DIM}Dashboard:${NC}          ${CYAN}http://localhost:3000${NC}"
+echo -e "  ${DIM}Dashboard:${NC}          ${CYAN}http://localhost:3004${NC}"
 echo -e "  ${DIM}NGINX Proxy:${NC}        ${CYAN}http://localhost:8080${NC}"
 echo -e "  ${DIM}API Service:${NC}        ${CYAN}http://localhost:8083${NC}"
 echo -e "  ${DIM}AI Service:${NC}         ${CYAN}http://localhost:8005${NC}"
