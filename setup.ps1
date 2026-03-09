@@ -53,7 +53,7 @@ function Test-CommandVersion {
                 Write-Host "  [OK] $Name (v$ver)" -ForegroundColor Green
                 return $true
             } else {
-                Write-Host "  [OUTDATED] $Name (v$ver, need v$MinMajor+)" -ForegroundColor Yellow
+                Write-Host "  [OUTDATED] $Name (v$ver, need v$($MinMajor)+)" -ForegroundColor Yellow
                 return $false
             }
         } else {
@@ -114,7 +114,7 @@ $SupabaseAnonKey = Read-Host "  Enter your Supabase Anon Key" -AsSecureString
 $SupabaseAnonKeyPlain = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($SupabaseAnonKey))
 if ([string]::IsNullOrWhiteSpace($SupabaseAnonKeyPlain)) { $SupabaseAnonKeyPlain = "your-supabase-anon-key" }
 
-$GeminiApiKey = Read-Host "  Enter your Gemini API Key (optional, press Enter to skip)" -AsSecureString
+$GeminiApiKey = Read-Host "  Enter your Gemini API Key - optional, press Enter to skip" -AsSecureString
 $GeminiApiKeyPlain = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($GeminiApiKey))
 
 $SupabaseDbPassword = Read-Host "  Enter your Supabase DB Password" -AsSecureString
@@ -150,29 +150,31 @@ INGESTION_PORT=8081
 COMPARISON_PORT=8082
 GRAFANA_PORT=3001
 PROMETHEUS_PORT=9090
-"@ | Out-File -FilePath "$ScriptDir\.env" -Encoding utf8 -NoNewline
+"@ | Out-File -FilePath (Join-Path $ScriptDir ".env") -Encoding utf8 -NoNewline
 Write-Host "  [OK] Generated .env" -ForegroundColor Green
 
 # Generate dashboard/.env.local
 @"
 VITE_SUPABASE_URL=$SupabaseUrl
 VITE_SUPABASE_ANON_KEY=$SupabaseAnonKeyPlain
-"@ | Out-File -FilePath "$ScriptDir\dashboard\.env.local" -Encoding utf8 -NoNewline
+"@ | Out-File -FilePath (Join-Path $ScriptDir "dashboard\.env.local") -Encoding utf8 -NoNewline
 Write-Host "  [OK] Generated dashboard/.env.local" -ForegroundColor Green
 
 # Generate supabase.ts
-@"
+$supabaseTsContent = @'
 import { createClient } from '@supabase/supabase-js';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '$SupabaseUrl';
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '$SupabaseAnonKeyPlain';
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '__SUPABASE_URL__';
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '__SUPABASE_ANON_KEY__';
 
 if (SUPABASE_URL === 'https://your-project.supabase.co') {
-    console.warn('Supabase URL not configured. Run ``./setup.sh`` or set VITE_SUPABASE_URL in dashboard/.env.local');
+    console.warn('Supabase URL not configured. Run ./setup.sh or set VITE_SUPABASE_URL in dashboard/.env.local');
 }
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-"@ | Out-File -FilePath "$ScriptDir\dashboard\src\services\supabase.ts" -Encoding utf8 -NoNewline
+'@
+$supabaseTsContent = $supabaseTsContent.Replace('__SUPABASE_URL__', $SupabaseUrl).Replace('__SUPABASE_ANON_KEY__', $SupabaseAnonKeyPlain)
+$supabaseTsContent | Out-File -FilePath (Join-Path $ScriptDir "dashboard\src\services\supabase.ts") -Encoding utf8 -NoNewline
 Write-Host "  [OK] Generated dashboard/src/services/supabase.ts" -ForegroundColor Green
 
 Write-Host ""
