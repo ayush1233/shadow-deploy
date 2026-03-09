@@ -146,69 +146,97 @@ Shadow deployment is **not** about duplicating your entire website. It's about r
 
 ### Prerequisites
 
-- **Docker & Docker Compose** (for running the full microservice stack)
-- **Node.js 18+** (for the dashboard)
-- A **Supabase** account (free tier works — [supabase.com](https://supabase.com))
-- (Optional) **Gemini API Key** for AI-powered comparison
+- **Docker & Docker Compose**
+- **Python 3.8+** (for setup and CLI tools)
+- **Node.js 18+** (for dashboard)
+- A **Supabase** Project ([supabase.com](https://supabase.com))
+- (Optional) **Gemini API Key**
 
-### Step 1: Clone & Install
+### Step 1: Clone & Setup
+The platform includes an interactive setup wizard that configures all environment variables, directory structures, and Docker configurations.
 
 ```bash
 git clone <repo-url> shadow-deploy
 cd shadow-deploy
+make setup
 ```
 
-### Step 2: Set Up Supabase Database
-
-1. Create a project at [supabase.com](https://supabase.com)
-2. Go to **SQL Editor** → New Query
-3. Copy-paste the contents of `dashboard/supabase-schema.sql` and click **Run**
-4. Go to **Authentication → Providers → Email** and disable "Confirm email" (for local dev)
-5. Copy your **Project URL** and **Anon Key** from **Settings → API**
-
-### Step 3: Configure the Dashboard
-
-Update `dashboard/src/services/supabase.ts` with your Supabase credentials:
-
-```typescript
-const SUPABASE_URL = 'https://your-project.supabase.co';
-const SUPABASE_ANON_KEY = 'your-anon-key';
-```
-
-### Step 4: Start the Dashboard
+### Step 2: Start the Platform
+Once configured, spin up the entire microservice stack with one command:
 
 ```bash
-cd dashboard
-npm install
-npm run dev
+make start
 ```
 
-Open **http://localhost:3000** → Create Account → Sign In → You'll see the dashboard with seed data.
-
-### Step 5: Start the Full Backend Stack (Optional)
+### Step 3: Verify Health
+Ensure all 9+ services (Kafka, Redis, Spring Boot APIs, AI Service) are running correctly:
 
 ```bash
-# Set your Gemini API key
-export GEMINI_API_KEY=your-gemini-api-key
-
-# Start all microservices
-docker-compose up -d --build
+make health
 ```
+
+### Step 4: Generate Demo Traffic
+Populate your dashboard with data instantly by running the synthetic traffic generator:
+
+```bash
+python cli/demo.py
+```
+
+### 🛠️ Common Makefile Commands
+
+| Command | Description |
+|---------|-------------|
+| `make setup` | Run interactive configuration wizard |
+| `make start` | Build and start all Docker containers |
+| `make stop` | Stop and remove all containers |
+| `make logs` | Tail logs for all services |
+| `make health` | Run aggregate service health checks |
+| `make dev` | Run dashboard in local development mode |
+| `make clean` | Wipe volumes and reset environment |
 
 ### Service Ports
 
 | Service | URL | Description |
 |---------|-----|-------------|
-| **Dashboard (dev)** | http://localhost:3000 | React dashboard (Vite dev server) |
-| **Dashboard (Docker)** | http://localhost:3002 | Nginx-served production build |
-| **NGINX Proxy** | http://localhost:8080 | Traffic mirror point |
-| **API Service** | http://localhost:8083 | REST API (JWT auth) |
-| **AI Service** | http://localhost:8000 | Gemini-powered comparison |
-| **Ingestion Service** | http://localhost:8081 | Traffic capture |
-| **Comparison Engine** | http://localhost:8082 | Diff engine |
-| **Grafana** | http://localhost:3001 | Metrics dashboards |
-| **Prometheus** | http://localhost:9090 | Metrics collection |
-| **Kafka** | localhost:29092 | Message broker |
+| **Dashboard** | http://localhost:3002 | React dashboard (Stripe-stable theme) |
+| **NGINX Proxy** | http://localhost:8080 | Traffic mirror & routing point |
+| **Sample API v1** | http://localhost:3003 | "Production" mock target |
+| **Sample API v2** | http://localhost:4001 | "Shadow" mock target (with latency/bugs) |
+| **API Service** | http://localhost:8083 | Main control plane API |
+| **AI Service** | http://localhost:8000 | Gemini comparison & configuration |
+| **Grafana** | http://localhost:3001 | Real-time performance metrics |
+
+---
+
+## 📊 Dashboard Features
+
+- **Quick Configure Wizard**: Multi-step guide to set up production/shadow routing using natural language AI.
+- **Interactive Website Testing**: Live path-testing tool to compare any two URLs in real-time.
+- **Advanced Diff Viewer**: High-fidelity JSON diffing using `react-diff-viewer-continued`.
+- **Historical Trends**: 7-day risk vs. pass rate charts powered by `recharts`.
+- **Actionable Notifications**: Configure Slack, Email, and Webhook thresholds for high-risk deployments.
+- **Reporting**: One-click **PDF** and **CSV** exports for audit trials and stakeholder reports.
+- **Endpoint Tagging**: Organize your API surface with visual metadata (e.g., `Critical`, `Legacy`).
+
+---
+
+## 🔧 Shadow CLI (`shadowctl`)
+
+Our unified Python CLI tool for platform management:
+
+```bash
+# Check overall pipeline health
+python cli/shadowctl.py health
+
+# View current container status
+python cli/shadowctl.py status
+
+# Trigger a manual endpoint comparison test
+python cli/shadowctl.py test --endpoint /api/v1/users
+
+# Configure NGINX proxy via natural language
+python cli/shadowctl.py configure --prompt "Mirror 20% of traffic to port 4001"
+```
 
 ---
 

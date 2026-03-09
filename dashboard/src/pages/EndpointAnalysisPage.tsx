@@ -27,7 +27,7 @@ export default function EndpointAnalysisPage() {
             setIsLoaded(false);
             try {
                 // Pass filters to the backend
-                const params: any = { size: 100 };
+                const params: any = { size: 100, timeRange };
                 if (endpointFilter) params.endpoint = endpointFilter;
                 if (severityFilter !== 'all') params.severity = severityFilter;
 
@@ -171,7 +171,7 @@ export default function EndpointAnalysisPage() {
                         ) : (
                             filteredComparisons.map(item => {
                                 // Fallbacks for backend properties since list API might vary from full detail
-                                const statusString = item.status || '200 → 200';
+                                const statusString = item.status || `${item.prod_status_code || 200} → ${item.shadow_status_code || 200}`;
                                 const latencyDelta = item.latency_delta_ms || item.latencyDelta || 0;
                                 const simScore = item.similarity_score !== undefined ? item.similarity_score : item.similarity || 1.0;
                                 const riskScore = item.risk_score || item.riskScore || 0;
@@ -224,7 +224,7 @@ export default function EndpointAnalysisPage() {
                                             </span>
                                         </td>
                                         <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>
-                                            {item.timestamp ? new Date(item.timestamp).toLocaleTimeString() : 'N/A'}
+                                            {(item.created_at || item.timestamp) ? new Date(item.created_at || item.timestamp).toLocaleTimeString() : 'N/A'}
                                         </td>
                                     </tr>
                                 )

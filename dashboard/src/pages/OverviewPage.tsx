@@ -64,10 +64,19 @@ export default function OverviewPage() {
         exportPdf(trendData, '7-Day Risk & Pass Rate Trend', 'shadow-risk-trend.pdf');
     };
 
-    if (!isLoaded || !metrics) {
+    if (!isLoaded) {
         return (
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
                 <div style={{ color: 'var(--text-secondary)' }}>Loading live metrics...</div>
+            </div>
+        );
+    }
+
+    if (!metrics) {
+        return (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: 16 }}>
+                <div style={{ color: 'var(--text-secondary)', fontSize: 16 }}>No data available yet</div>
+                <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Start sending traffic through the proxy to see metrics here.</p>
             </div>
         );
     }
@@ -135,7 +144,7 @@ export default function OverviewPage() {
                 <div className="stat-card green">
                     <div className="stat-label">Comparisons</div>
                     <div className="stat-value green">{formatNum(metrics.overview.total_comparisons)}</div>
-                    <div className="stat-change positive">{((metrics.overview.total_comparisons / metrics.overview.total_requests) * 100).toFixed(1)}% coverage</div>
+                    <div className="stat-change positive">{metrics.overview.total_requests > 0 ? ((metrics.overview.total_comparisons / metrics.overview.total_requests) * 100).toFixed(1) : '0.0'}% coverage</div>
                 </div>
 
                 <div className="stat-card yellow">

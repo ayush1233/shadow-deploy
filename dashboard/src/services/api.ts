@@ -96,6 +96,7 @@ export const listComparisons = async (params: {
     size?: number;
     endpoint?: string;
     severity?: string;
+    timeRange?: string;
 }) => {
     let query = supabase
         .from('comparisons')
@@ -107,6 +108,13 @@ export const listComparisons = async (params: {
     }
     if (params.severity && params.severity !== 'all') {
         query = query.eq('severity', params.severity);
+    }
+    if (params.timeRange) {
+        const now = new Date();
+        const rangeMap: Record<string, number> = { '15m': 15, '1h': 60, '6h': 360, '24h': 1440, '7d': 10080 };
+        const minutes = rangeMap[params.timeRange] || 60;
+        const since = new Date(now.getTime() - minutes * 60 * 1000);
+        query = query.gte('created_at', since.toISOString());
     }
 
     const size = params.size || 20;
