@@ -53,7 +53,7 @@ function Test-CommandVersion {
                 Write-Host "  [OK] $Name (v$ver)" -ForegroundColor Green
                 return $true
             } else {
-                $msg = '  [OUTDATED] {0} (v{1}, need v{2}+)' -f $Name, $ver, $MinMajor
+                $msg = '  [OUTDATED] {0} (v{1}, need v{2}+) ' -f $Name, $ver, $MinMajor
                 Write-Host $msg -ForegroundColor Yellow
                 return $false
             }
@@ -166,21 +166,21 @@ $dashEnvPath = Join-Path $ScriptDir "dashboard/.env.local"
 Write-Host "  [OK] Generated dashboard/.env.local" -ForegroundColor Green
 
 # Generate supabase.ts
-# Build the JS or-operator at runtime to avoid PowerShell parsing the literal pipe-pipe token
-$pipe = [char]124
-$or = "$pipe$pipe"
-$supabaseTsContent = @(
-    "import { createClient } from '@supabase/supabase-js';",
-    "",
-    "const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL $or '$SupabaseUrl';",
-    "const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY $or '$SupabaseAnonKeyPlain';",
-    "",
-    "if (SUPABASE_URL === 'https://your-project.supabase.co') {",
-    "    console.warn('Supabase URL not configured. Run ./setup.sh or set VITE_SUPABASE_URL in dashboard/.env.local');",
-    "}",
-    "",
-    "export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);"
-) -join "`n"
+# Use StringBuilder to avoid array syntax that PS 5.1 misparses with LF line endings.
+# The JS logical-or operator is built from char codes so it never appears as a literal token.
+$sb = New-Object System.Text.StringBuilder
+$orOp = [string][char]124 + [string][char]124
+[void]$sb.AppendLine("import { createClient } from '@supabase/supabase-js';")
+[void]$sb.AppendLine("")
+[void]$sb.AppendLine("const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL " + $orOp + " '" + $SupabaseUrl + "';")
+[void]$sb.AppendLine("const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY " + $orOp + " '" + $SupabaseAnonKeyPlain + "';")
+[void]$sb.AppendLine("")
+[void]$sb.AppendLine("if (SUPABASE_URL === 'https://your-project.supabase.co') {")
+[void]$sb.AppendLine("    console.warn('Supabase URL not configured. Run ./setup.sh or set VITE_SUPABASE_URL in dashboard/.env.local');")
+[void]$sb.AppendLine("}")
+[void]$sb.AppendLine("")
+[void]$sb.Append("export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);")
+$supabaseTsContent = $sb.ToString()
 $supabaseTsPath = Join-Path $ScriptDir "dashboard/src/services/supabase.ts"
 [System.IO.File]::WriteAllText($supabaseTsPath, $supabaseTsContent, [System.Text.Encoding]::UTF8)
 Write-Host "  [OK] Generated dashboard/src/services/supabase.ts" -ForegroundColor Green
@@ -194,7 +194,7 @@ if ($RunMigrate -eq "y" -or $RunMigrate -eq "Y") {
     Write-Color "  Manual Step Required:" Yellow
     Write-Color "  1. Go to your Supabase Dashboard -> SQL Editor -> New Query" DarkGray
     Write-Color "  2. Paste the contents of: dashboard/supabase-schema.sql" DarkGray
-    Write-Color "  3. Click 'Run'" DarkGray
+    Write-Color "  3. Click Run" DarkGray
     Write-Host ""
     Read-Host "  Press Enter when done"
 }
