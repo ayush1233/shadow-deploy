@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getComparison } from '../services/api';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import ReactDiffViewer from 'react-diff-viewer-continued';
 import { exportCsv } from '../utils/exportCsv';
 import { exportPdf } from '../utils/exportPdf';
@@ -97,6 +97,30 @@ export default function ComparisonDetailPage() {
         if (typeof data.shadow.body === 'string') shadowBodyRaw = JSON.stringify(JSON.parse(data.shadow.body), null, 2);
     } catch (e) { }
 
+    // Detect empty/identical bodies (Supabase default '{}') and build synthetic diff from field_diffs
+    const bodiesEmpty = prodBodyRaw.trim() === '{}' && shadowBodyRaw.trim() === '{}';
+    const bodiesIdentical = prodBodyRaw === shadowBodyRaw;
+    const hasFieldDiffs = comp.field_diffs && comp.field_diffs.length > 0;
+
+    if ((bodiesEmpty || bodiesIdentical) && hasFieldDiffs) {
+        // Build synthetic JSON from field_diffs so the diff viewer has something to show
+        const prodObj: Record<string, any> = {};
+        const shadowObj: Record<string, any> = {};
+        comp.field_diffs.forEach((diff: any) => {
+            const key = diff.path || 'unknown';
+            if (diff.diff_type === 'ADDED') {
+                shadowObj[key] = diff.shadow_value ?? '(added)';
+            } else if (diff.diff_type === 'REMOVED') {
+                prodObj[key] = diff.prod_value ?? '(removed)';
+            } else {
+                prodObj[key] = diff.prod_value ?? null;
+                shadowObj[key] = diff.shadow_value ?? null;
+            }
+        });
+        prodBodyRaw = JSON.stringify(prodObj, null, 2);
+        shadowBodyRaw = JSON.stringify(shadowObj, null, 2);
+    }
+
     return (
         <div style={{ animation: 'fade-in 0.3s ease-out' }}>
             <button className="back-btn" onClick={() => navigate('/endpoints')}>
@@ -117,7 +141,41 @@ export default function ComparisonDetailPage() {
                 </div>
                 <div style={{ display: 'flex', gap: 12 }}>
                     <button className="btn" style={{ background: 'var(--bg-surface)' }} onClick={() => exportCsv([comp], `comparison-${requestId}.csv`)}>⬇ CSV</button>
-                    <button className="btn" style={{ background: 'var(--bg-surface)' }} onClick={() => exportPdf([comp], 'Comparison Detail', `comparison-${requestId}.pdf`)}>⬇ PDF</button>
+                    <button className="btn" style={{ background: 'var(--bg-surface)' }} onClick={() => {
+                        const pdfData = [{
+                            'Request ID': requestId || data.request_id,
+                            'Endpoint': data.endpoint,
+                            'Method': data.method,
+                            'Timestamp': data.timestamp,
+                            'Prod Status': data.production.status_code,
+                            'Shadow Status': data.shadow.status_code,
+                            'Status Match': comp.status_match ? 'Yes' : 'No',
+                            'Body Match': comp.body_match ? 'Yes' : 'No',
+                            'Similarity': `${(comp.similarity_score * 100).toFixed(1)}%`,
+                            'Latency Delta': `${comp.latency_delta_ms}ms`,
+                            'Risk Score': Number(comp.risk_score).toFixed(1),
+                            'Severity': comp.severity,
+                            'Recommendation': comp.recommended_action?.replace(/_/g, ' ') || 'N/A',
+                            'AI Summary': comp.explanation?.summary || 'N/A',
+                            'AI Impact': comp.explanation?.impact || 'N/A',
+                        }];
+                        if (comp.field_diffs?.length > 0) {
+                            comp.field_diffs.forEach((diff: any, i: number) => {
+                                pdfData.push({
+                                    'Request ID': `Field Diff #${i + 1}`,
+                                    'Endpoint': diff.path,
+                                    'Method': diff.diff_type,
+                                    'Timestamp': '',
+                                    'Prod Status': diff.prod_value || '',
+                                    'Shadow Status': diff.shadow_value || '',
+                                    'Status Match': '', 'Body Match': '', 'Similarity': '',
+                                    'Latency Delta': '', 'Risk Score': '', 'Severity': '',
+                                    'Recommendation': '', 'AI Summary': '', 'AI Impact': '',
+                                } as any);
+                            });
+                        }
+                        exportPdf(pdfData, 'Comparison Detail Report', `comparison-${requestId}.pdf`);
+                    }}>⬇ PDF</button>
                 </div>
             </div>
 
@@ -256,48 +314,47 @@ export default function ComparisonDetailPage() {
                 </div>
             </div>
 
-            <AnimatePresence>
-                {isDiffExpanded && (
-                    <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        style={{ overflow: 'hidden' }}
-                    >
-
-                        <div style={{ padding: 16, background: 'rgba(30, 41, 59, 0.45)', borderRadius: 8, marginTop: 16, border: '1px solid var(--border-color)', backdropFilter: 'blur(16px)' }}>
-                            <ReactDiffViewer
-                                oldValue={prodBodyRaw}
-                                newValue={shadowBodyRaw}
-                                splitView={splitView}
-                                leftTitle="Production (v1)"
-                                rightTitle="Shadow (v2 candidate)"
-                                useDarkTheme={true}
-                                showDiffOnly={showDiffOnly}
-                                styles={{
-                                    variables: {
-                                        dark: {
-                                            diffViewerBackground: 'transparent',
-                                            diffViewerColor: 'var(--text-primary)',
-                                            addedBackground: 'rgba(16, 185, 129, 0.15)',
-                                            addedColor: '#fff',
-                                            removedBackground: 'rgba(239, 68, 68, 0.15)',
-                                            removedColor: '#fff',
-                                            wordAddedBackground: 'rgba(16, 185, 129, 0.4)',
-                                            wordRemovedBackground: 'rgba(239, 68, 68, 0.4)',
-                                            addedGutterBackground: 'rgba(16, 185, 129, 0.05)',
-                                            removedGutterBackground: 'rgba(239, 68, 68, 0.05)',
-                                            gutterBackground: 'transparent',
-                                            gutterBackgroundDark: 'transparent',
-                                            emptyLineBackground: 'transparent',
-                                            diffViewerTitleBackground: 'rgba(0,0,0,0.2)',
-                                            diffViewerTitleColor: 'var(--text-secondary)',
-                                            diffViewerTitleBorderColor: 'var(--border-color)'
-                                        }
-                                    }
-                                }}
-                            />
+            {isDiffExpanded && (
+                <div>
+                    {(bodiesEmpty || bodiesIdentical) && hasFieldDiffs && (
+                        <div style={{ padding: '8px 16px', marginTop: 16, background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.3)', borderRadius: 8, color: 'var(--accent-yellow)', fontSize: 13 }}>
+                            Response bodies not stored — showing reconstructed diff from field-level differences.
                         </div>
+                    )}
+                    <div style={{ padding: 16, background: 'rgba(30, 41, 59, 0.45)', borderRadius: 8, marginTop: 16, border: '1px solid var(--border-color)', backdropFilter: 'blur(16px)' }}>
+                        <ReactDiffViewer
+                            oldValue={prodBodyRaw}
+                            newValue={shadowBodyRaw}
+                            splitView={splitView}
+                            leftTitle="Production (v1)"
+                            rightTitle="Shadow (v2 candidate)"
+                            useDarkTheme={true}
+                            showDiffOnly={false}
+                            extraLinesSurroundingDiff={showDiffOnly ? 3 : undefined}
+                            styles={{
+                                variables: {
+                                    dark: {
+                                        diffViewerBackground: 'transparent',
+                                        diffViewerColor: 'var(--text-primary)',
+                                        addedBackground: 'rgba(16, 185, 129, 0.15)',
+                                        addedColor: '#fff',
+                                        removedBackground: 'rgba(239, 68, 68, 0.15)',
+                                        removedColor: '#fff',
+                                        wordAddedBackground: 'rgba(16, 185, 129, 0.4)',
+                                        wordRemovedBackground: 'rgba(239, 68, 68, 0.4)',
+                                        addedGutterBackground: 'rgba(16, 185, 129, 0.05)',
+                                        removedGutterBackground: 'rgba(239, 68, 68, 0.05)',
+                                        gutterBackground: 'transparent',
+                                        gutterBackgroundDark: 'transparent',
+                                        emptyLineBackground: 'transparent',
+                                        diffViewerTitleBackground: 'rgba(0,0,0,0.2)',
+                                        diffViewerTitleColor: 'var(--text-secondary)',
+                                        diffViewerTitleBorderColor: 'var(--border-color)'
+                                    }
+                                }
+                            }}
+                        />
+                    </div>
 
                         {/* Field Level Diffs Summary */}
                         {comp.field_diffs && comp.field_diffs.length > 0 && (
@@ -330,9 +387,8 @@ export default function ComparisonDetailPage() {
                             </div>
                         )}
 
-                    </motion.div>
-                )}
-            </AnimatePresence>
+                </div>
+            )}
         </div>
     );
 }

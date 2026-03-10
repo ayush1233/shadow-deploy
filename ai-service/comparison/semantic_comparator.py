@@ -1,39 +1,48 @@
 """
-Semantic Comparator using Google Gemini API.
-Computes similarity score, generates human-readable explanations,
-and classifies the severity of API response differences.
+Semantic Comparator — LLM-powered API response comparison.
+
+Supports pluggable backends (Gemini, Ollama, heuristic fallback)
+via the LLMProvider abstraction.
 """
 
 import json
 import logging
-import asyncio
 from typing import Dict, Any, List, Optional
 
-import google.generativeai as genai
+from comparison.llm_provider import LLMProvider
 
 logger = logging.getLogger("ai-service.semantic_comparator")
 
 
 class SemanticComparator:
     """
-    Uses Google Gemini to perform semantic comparison of API responses.
-    Ignores non-critical differences (timestamps, field ordering)
-    and focuses on meaningful behavioral changes.
+    Uses an LLM provider to perform semantic comparison of API responses.
+    Falls back to heuristic analysis when no provider is available.
     """
 
-    def __init__(self, api_key: str = ""):
-        self.api_key = api_key
-        self.model = None
-
-        if api_key:
-            genai.configure(api_key=api_key)
-            self.model = genai.GenerativeModel("gemini-2.0-flash")
-            logger.info("Gemini API configured successfully")
+    def __init__(self, provider: Optional[LLMProvider] = None, api_key: str = ""):
+        """
+        Args:
+            provider: Pre-built LLMProvider instance (preferred).
+            api_key:  Legacy — if provider is None and api_key is given,
+                      builds a GeminiProvider automatically.
+        """
+        if provider is not None:
+            self.provider = provider
+        elif api_key:
+            from comparison.llm_provider import GeminiProvider
+            self.provider = GeminiProvider(api_key=api_key)
         else:
-            logger.warning("No GEMINI_API_KEY provided — using fallback heuristic comparison")
+            self.provider = None
+
+        if self.provider and self.provider.is_configured():
+            logger.info(f"SemanticComparator using {type(self.provider).__name__}")
+        else:
+            logger.warning("No LLM provider — using fallback heuristic comparison")
+            self.provider = None
 
     def is_configured(self) -> bool:
-        return self.model is not None
+        return self.provider is not None and self.provider.is_configured()
 
     async def compare(
         self,
@@ -44,22 +53,17 @@ class SemanticComparator:
         status_match: bool = True,
         latency_delta_ms: int = 0,
     ) -> Dict[str, Any]:
-        """
-        Perform semantic comparison. If Gemini is configured, uses LLM.
-        Otherwise falls back to heuristic analysis.
-        """
-        if self.model:
-            return await self._gemini_compare(
+        if self.provider:
+            return await self._llm_compare(
                 prod_body, shadow_body, endpoint,
                 field_diffs, status_match, latency_delta_ms
             )
-        else:
-            return self._heuristic_compare(
-                prod_body, shadow_body, endpoint,
-                field_diffs, status_match, latency_delta_ms
-            )
+        return self._heuristic_compare(
+            prod_body, shadow_body, endpoint,
+            field_diffs, status_match, latency_delta_ms
+        )
 
-    async def _gemini_compare(
+    async def _llm_compare(
         self,
         prod_body: str,
         shadow_body: str,
@@ -68,27 +72,13 @@ class SemanticComparator:
         status_match: bool,
         latency_delta_ms: int,
     ) -> Dict[str, Any]:
-        """Use Gemini for intelligent semantic comparison."""
-
         prompt = self._build_prompt(
             prod_body, shadow_body, endpoint,
             field_diffs, status_match, latency_delta_ms
         )
 
         try:
-            # Run the synchronous Gemini API call in a thread pool
-            response = await asyncio.to_thread(
-                self.model.generate_content,
-                prompt,
-                generation_config=genai.types.GenerationConfig(
-                    temperature=0.1,
-                    max_output_tokens=1024,
-                    response_mime_type="application/json",
-                ),
-            )
-
-            result = json.loads(response.text)
-
+            result = await self.provider.generate_json(prompt)
             return {
                 "similarity_score": float(result.get("similarity_score", 0.5)),
                 "explanation": result.get("explanation", "No explanation generated"),
@@ -96,20 +86,18 @@ class SemanticComparator:
                 "breaking_changes": result.get("breaking_changes", []),
                 "safe_differences": result.get("safe_differences", []),
             }
-
         except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse Gemini response as JSON: {e}")
-            # Fallback to heuristic if Gemini response isn't valid JSON
-            return self._heuristic_compare(
-                prod_body, shadow_body, endpoint,
-                field_diffs, status_match, latency_delta_ms
-            )
+            logger.error(f"Failed to parse LLM response as JSON: {e}")
         except Exception as e:
-            logger.error(f"Gemini API call failed: {e}")
-            return self._heuristic_compare(
-                prod_body, shadow_body, endpoint,
-                field_diffs, status_match, latency_delta_ms
-            )
+            logger.error(f"LLM comparison failed: {e}")
+
+        # Fallback on any error
+        return self._heuristic_compare(
+            prod_body, shadow_body, endpoint,
+            field_diffs, status_match, latency_delta_ms
+        )
+
+    # ── Prompt ──────────────────────────────────────
 
     def _build_prompt(
         self,
@@ -120,12 +108,10 @@ class SemanticComparator:
         status_match: bool,
         latency_delta_ms: int,
     ) -> str:
-        """Build the comparison prompt for Gemini."""
-
         diff_summary = "No field-level diffs available."
         if field_diffs:
             diff_lines = []
-            for d in field_diffs[:20]:  # Limit to 20 diffs
+            for d in field_diffs[:20]:
                 if hasattr(d, 'dict'):
                     d = d.dict()
                 elif hasattr(d, 'model_dump'):
@@ -138,7 +124,6 @@ class SemanticComparator:
                 )
             diff_summary = "\n".join(diff_lines)
 
-        # Truncate bodies to avoid token limits
         max_body_len = 3000
         prod_truncated = prod_body[:max_body_len] if prod_body else "(empty)"
         shadow_truncated = shadow_body[:max_body_len] if shadow_body else "(empty)"
@@ -181,6 +166,8 @@ Rules:
 - Empty/null changes may indicate bugs.
 """
 
+    # ── Heuristic fallback ──────────────────────────
+
     def _heuristic_compare(
         self,
         prod_body: str,
@@ -190,8 +177,6 @@ Rules:
         status_match: bool,
         latency_delta_ms: int,
     ) -> Dict[str, Any]:
-        """Fallback heuristic comparison when Gemini is unavailable."""
-
         if prod_body == shadow_body:
             return {
                 "similarity_score": 1.0,
@@ -216,7 +201,6 @@ Rules:
                 dtype = d.get("diff_type", "")
                 path = d.get("path", "")
 
-                # Ignore known safe fields
                 safe_fields = {"timestamp", "created_at", "updated_at", "request_id", "trace_id"}
                 field_name = path.split("/")[-1] if path else ""
 
@@ -233,11 +217,9 @@ Rules:
                 elif dtype == "CHANGED":
                     breaking.append(f"Value changed at: {path}")
 
-        # Calculate similarity
         if diff_count == 0:
             similarity = 0.9 if status_match else 0.5
         else:
-            # Reduce similarity based on diff count and type
             base = 1.0
             base -= len(breaking) * 0.15
             base -= len(safe) * 0.02

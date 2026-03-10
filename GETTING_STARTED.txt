@@ -1,0 +1,280 @@
+==============================================================
+  Shadow API Validation Platform — Step-by-Step Setup Guide
+==============================================================
+
+PREREQUISITES
+-------------
+  1. Docker Desktop (with Docker Compose)  — https://docker.com
+  2. Python 3.8+                           — https://python.org
+  3. Node.js 18+                           — https://nodejs.org
+  4. Java 17+ (for local development only) — https://adoptium.net
+  5. A Supabase project                    — https://supabase.com
+  6. (Optional) Gemini API Key             — https://aistudio.google.com
+
+==============================================================
+STEP 1: CLONE THE REPOSITORY
+==============================================================
+
+  git clone <your-repo-url> shadow-deploy
+  cd shadow-deploy
+
+==============================================================
+STEP 2: CONFIGURE ENVIRONMENT VARIABLES
+==============================================================
+
+  Option A: Run the setup wizard (recommended)
+
+    powershell -ExecutionPolicy Bypass -File setup.ps1
+
+  Option B: Manual setup
+
+    1. Copy the template:
+       cp .env.example .env
+
+    2. Edit .env and fill in:
+       SUPABASE_URL=https://your-project.supabase.co
+       SUPABASE_ANON_KEY=your-anon-key
+       SUPABASE_DB_PASSWORD=your-db-password
+       GEMINI_API_KEY=your-gemini-key          (optional)
+
+    3. Create dashboard/.env.local:
+       VITE_SUPABASE_URL=https://your-project.supabase.co
+       VITE_SUPABASE_ANON_KEY=your-anon-key
+
+    4. Create dashboard/src/services/supabase.ts:
+       (The setup wizard generates this automatically)
+
+==============================================================
+STEP 3: SET UP THE DATABASE (SUPABASE)
+==============================================================
+
+  1. Go to your Supabase dashboard: https://supabase.com/dashboard
+  2. Open the SQL Editor
+  3. Copy and paste the contents of: dashboard/supabase-schema.sql
+  4. Click "Run" to create the tables
+  5. Verify: you should see "comparisons" and "endpoint_tags" tables
+
+  IMPORTANT: Disable Row Level Security (RLS) on the "comparisons"
+  table for development, or add policies that allow inserts from
+  the comparison-engine service account.
+
+==============================================================
+STEP 4: START THE DOCKER INFRASTRUCTURE
+==============================================================
+
+  docker compose up -d --build
+
+  This starts:
+    - Zookeeper + Kafka     (message broker)
+    - Redis                 (correlation cache)
+    - NGINX                 (reverse proxy with traffic mirroring)
+    - Ingestion Service     (Spring Boot, port 8081)
+    - Comparison Engine     (Spring Boot, port 8082)
+    - API Service           (Spring Boot, port 8083)
+    - AI Service            (Python FastAPI, port 8000)
+
+  Wait ~60 seconds for all Java services to finish starting.
+
+  Check health:
+    docker compose ps
+    curl http://localhost:8081/api/v1/ingest/health
+    curl http://localhost:8082/actuator/health
+    curl http://localhost:8083/actuator/health
+
+==============================================================
+STEP 5: START THE DASHBOARD (DEV MODE)
+==============================================================
+
+  cd dashboard
+  npm install
+  npm run dev
+
+  The dashboard will be available at: http://localhost:3004
+
+  1. Open http://localhost:3004 in your browser
+  2. Sign up with an email and password (Supabase Auth)
+  3. Log in — you'll see the Overview page (empty for now)
+
+==============================================================
+STEP 6: START MOCK API SERVERS
+==============================================================
+
+  Open a NEW terminal and run:
+
+    python cli/mock-servers.py
+
+  This starts two mock API servers:
+    - V1 (Production) on port 5001
+    - V2 (Shadow)     on port 5002
+
+  The V2 server has DELIBERATE differences from V1:
+    - New fields added (priority_score, assigned_to, role)
+    - Fields removed (phone from users)
+    - Date format changes (ISO datetime -> date only)
+    - Status casing changes (open -> OPEN)
+    - Different counts (127 -> 134 tickets)
+    - New categories (infrastructure, ui)
+    - Extra latency (50-200ms)
+    - Extra items (6 tickets vs 5, 4 users vs 3)
+
+  Keep this terminal open — the servers must keep running.
+
+==============================================================
+STEP 7: GENERATE TRAFFIC
+==============================================================
+
+  Open ANOTHER terminal and run:
+
+    python cli/generate-traffic.py --count 30
+
+  This will:
+    1. Call both V1 and V2 APIs for each request
+    2. Compare the responses locally
+    3. Send both responses to the Ingestion Service
+    4. The Comparison Engine processes them via Kafka
+    5. Results appear in Supabase and the Dashboard
+
+  You should see output like:
+    [DIFF]   1/30  GET  /api/tickets/          v1=200/5ms  v2=200/120ms  ...
+    [SAME]   2/30  GET  /api/health            v1=200/3ms  v2=200/80ms   ...
+
+==============================================================
+STEP 8: VIEW RESULTS ON THE DASHBOARD
+==============================================================
+
+  1. Go to http://localhost:3004
+  2. OVERVIEW PAGE:
+     - Total requests, mismatches, mismatch rate
+     - Severity breakdown (none/low/medium/high/critical)
+     - Top endpoints by mismatch count
+     - Latency delta percentiles (P50, P95, P99)
+
+  3. ENDPOINT ANALYSIS PAGE:
+     - Browse all comparisons with filters
+     - Filter by time range, severity, endpoint
+     - Click any row to see the full comparison detail
+
+  4. COMPARISON DETAIL PAGE:
+     - Side-by-side response diff viewer
+     - Field-level differences table
+     - AI Analysis panel with:
+       * Summary of changes
+       * Detailed field-by-field analysis
+       * Impact assessment
+       * Confidence score
+     - Risk score and deployment recommendation
+
+  5. EXPORT:
+     - Click "PDF" or "CSV" buttons to download reports
+
+==============================================================
+STEP 9: (OPTIONAL) CONFIGURE GEMINI AI
+==============================================================
+
+  For richer AI-powered explanations:
+
+  1. Go to https://aistudio.google.com/apikey
+  2. Create or copy your API key
+  3. Make sure the "Generative Language API" is ENABLED
+     in your Google Cloud Console
+  4. Add to .env:
+       GEMINI_API_KEY=AIzaSy...your-key
+  5. Restart the comparison engine:
+       docker compose restart comparison-engine
+
+  Without Gemini, the system still generates smart programmatic
+  explanations from the field-level diffs.
+
+==============================================================
+TROUBLESHOOTING
+==============================================================
+
+  Problem: Dashboard shows 0 results
+  Fix: Make sure the time range filter is set to "7d" (not "1h")
+
+  Problem: All endpoints show as "/unknown"
+  Fix: Use the SDK ingestion mode (generate-traffic.py) instead
+       of relying on NGINX mirroring alone
+
+  Problem: AI Analysis shows "explanation unavailable"
+  Fix: Check your Gemini API key. Run:
+       docker logs shadow-comparison-engine 2>&1 | grep -i gemini
+       If you see 403/401 errors, regenerate your API key and
+       make sure the Generative Language API is enabled.
+
+  Problem: Services not starting
+  Fix: Check logs:
+       docker compose logs ingestion-service
+       docker compose logs comparison-engine
+       Common issue: Supabase DB password incorrect in .env
+
+  Problem: Kafka disconnections in logs
+  Fix: This is normal during idle periods. Kafka reconnects
+       automatically when traffic resumes.
+
+  Problem: Mock servers exit immediately
+  Fix: Run them in the foreground (not background):
+       python cli/mock-servers.py
+       Keep the terminal open.
+
+==============================================================
+ARCHITECTURE SUMMARY
+==============================================================
+
+  User Request
+       |
+       v
+  [NGINX Proxy :8080]
+       |           \
+       v            v (mirror)
+  [V1 API :5001]  [V2 API :5002]
+       |                |
+       v                v
+  [Ingestion Service :8081]
+       |
+       v
+  [Apache Kafka]
+   prod-traffic / shadow-traffic topics
+       |
+       v
+  [Comparison Engine :8082]
+   + Redis correlation
+   + Deterministic diff
+   + AI analysis (Gemini or smart fallback)
+       |
+       v
+  [Supabase PostgreSQL]
+       |
+       v
+  [React Dashboard :3004]
+
+==============================================================
+USEFUL COMMANDS
+==============================================================
+
+  # Start everything
+  docker compose up -d --build
+
+  # Stop everything
+  docker compose down
+
+  # View logs
+  docker compose logs -f comparison-engine
+  docker compose logs -f ingestion-service
+
+  # Restart a single service
+  docker compose restart comparison-engine
+
+  # Rebuild a single service
+  docker compose build comparison-engine
+  docker compose up -d comparison-engine
+
+  # Check service health
+  curl http://localhost:8081/api/v1/ingest/health
+  curl http://localhost:8082/actuator/health
+
+  # Generate more traffic
+  python cli/generate-traffic.py --count 50 --interval 0.3
+
+  # Dashboard dev mode
+  cd dashboard && npm run dev

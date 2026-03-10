@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s http://localhost:8080/api/tickets/)",
+      "Bash(curl -s http://localhost:8080/api/tickets/stats/)",
+      "Bash(curl -s http://localhost:8080/api/tickets/1/)",
+      "Bash(python cli/generate-traffic.py --count 20 --interval 0.5)",
+      "Bash(curl -s \"https://likjiuylgndoedpkzxhb.supabase.co/rest/v1/comparisons?select=endpoint,method,severity,risk_score,body_match,ai_explanation&order=timestamp.desc&limit=8\" -H \"apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxpa2ppdXlsZ25kb2VkcGt6eGhiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzODQ5NzUsImV4cCI6MjA4Nzk2MDk3NX0.y6yvFLWpLWkRPYoi-PpPa645SEBjwWZnd6c-ExZJBHU\" -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxpa2ppdXlsZ25kb2VkcGt6eGhiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzODQ5NzUsImV4cCI6MjA4Nzk2MDk3NX0.y6yvFLWpLWkRPYoi-PpPa645SEBjwWZnd6c-ExZJBHU\")",
+      "Bash(python -m json.tool)",
+      "Bash(python cli/generate-traffic.py --count 25 --interval 0.8)"
+    ]
+  }
+}

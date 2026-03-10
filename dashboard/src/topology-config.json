@@ -10,7 +10,7 @@
   "comparisonPort": 8082,
   "apiServicePort": 8083,
   "aiServicePort": 8005,
-  "dashboardPort": 3002,
+  "dashboardPort": 3004,
   "services": [
     "zookeeper",
     "kafka",

@@ -8,7 +8,28 @@
       "Bash(make restart)",
       "Bash(make --version)",
       "Bash(npm install)",
-      "Bash(npx -p typescript tsc --noEmit)"
+      "Bash(npx -p typescript tsc --noEmit)",
+      "Bash(xxd \"c:/Users/91986/OneDrive/Pictures/shadow-deploy/setup.ps1\")",
+      "Bash(xxd)",
+      "Bash(powershell -NoProfile -Command \"try { [System.Management.Automation.Language.Parser]::ParseFile\\(''c:/Users/91986/OneDrive/Pictures/shadow-deploy/setup.ps1'', [ref]$null, [ref]$null\\) | Out-Null; Write-Host ''Parse OK'' } catch { Write-Host \"\"Parse ERROR: $_\"\" }\")",
+      "Bash(powershell -NoProfile -Command \"& { $tokens = $null; $errors = $null; [System.Management.Automation.Language.Parser]::ParseFile\\(''c:\\\\Users\\\\91986\\\\OneDrive\\\\Pictures\\\\shadow-deploy\\\\setup.ps1'', [ref]$tokens, [ref]$errors\\); if \\($errors.Count -eq 0\\) { Write-Host ''Parse OK - no errors'' } else { $errors | ForEach-Object { Write-Host $_.Message } } }\")",
+      "Bash(powershell -NoProfile -File /tmp/test_parse.ps1)",
+      "Bash(curl -s \"https://likjiuylgndoedpkzxhb.supabase.co/rest/v1/comparisons?select=endpoint,method,severity,risk_score,body_match,similarity_score,ai_explanation&order=timestamp.desc&limit=8\" -H \"apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxpa2ppdXlsZ25kb2VkcGt6eGhiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzODQ5NzUsImV4cCI6MjA4Nzk2MDk3NX0.y6yvFLWpLWkRPYoi-PpPa645SEBjwWZnd6c-ExZJBHU\" -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxpa2ppdXlsZ25kb2VkcGt6eGhiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzODQ5NzUsImV4cCI6MjA4Nzk2MDk3NX0.y6yvFLWpLWkRPYoi-PpPa645SEBjwWZnd6c-ExZJBHU\")",
+      "Bash(curl -s -X DELETE \"https://likjiuylgndoedpkzxhb.supabase.co/rest/v1/comparisons?id=not.is.null\" -H \"apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxpa2ppdXlsZ25kb2VkcGt6eGhiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzODQ5NzUsImV4cCI6MjA4Nzk2MDk3NX0.y6yvFLWpLWkRPYoi-PpPa645SEBjwWZnd6c-ExZJBHU\" -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxpa2ppdXlsZ25kb2VkcGt6eGhiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzODQ5NzUsImV4cCI6MjA4Nzk2MDk3NX0.y6yvFLWpLWkRPYoi-PpPa645SEBjwWZnd6c-ExZJBHU\" -H \"Prefer: return=minimal\")",
+      "Bash(python cli/generate-traffic.py --count 20 --interval 0.8)",
+      "Bash(curl -v -s http://localhost:8081/api/v1/ingest/health)",
+      "Bash(curl -s -X POST http://localhost:8081/api/v1/ingest/event -H \"Content-Type: application/json\" -d '{\"\"request_id\"\":\"\"test123\"\",\"\"tenant_id\"\":\"\"demo\"\",\"\"traffic_type\"\":\"\"production\"\",\"\"method\"\":\"\"GET\"\",\"\"endpoint\"\":\"\"/api/test\"\",\"\"response_status\"\":200,\"\"response_time_ms\"\":50,\"\"response_body\"\":\"\"{\\\\\"\"hello\\\\\"\":\\\\\"\"world\\\\\"\"}\"\",\"\"ingestion_mode\"\":\"\"sdk\"\"}')",
+      "Bash(curl -s -X POST http://localhost:8081/api/v1/ingest/event -H \"Content-Type: application/json\" -H \"X-API-Key: sk-shadow-default-key-change-me\" -d '{\"\"request_id\"\":\"\"test-verify-123\"\",\"\"tenant_id\"\":\"\"demo\"\",\"\"traffic_type\"\":\"\"production\"\",\"\"method\"\":\"\"GET\"\",\"\"endpoint\"\":\"\"/api/test\"\",\"\"response_status\"\":200,\"\"response_time_ms\"\":50,\"\"response_body\"\":\"\"{\\\\\"\"hello\\\\\"\":\\\\\"\"world\\\\\"\"}\"\",\"\"ingestion_mode\"\":\"\"sdk\"\"}')",
+      "Bash(curl -s \"https://likjiuylgndoedpkzxhb.supabase.co/rest/v1/comparisons?select=endpoint,method,severity,risk_score,body_match,similarity_score,ai_explanation&order=timestamp.desc&limit=6\" -H \"apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxpa2ppdXlsZ25kb2VkcGt6eGhiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzODQ5NzUsImV4cCI6MjA4Nzk2MDk3NX0.y6yvFLWpLWkRPYoi-PpPa645SEBjwWZnd6c-ExZJBHU\" -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxpa2ppdXlsZ25kb2VkcGt6eGhiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzODQ5NzUsImV4cCI6MjA4Nzk2MDk3NX0.y6yvFLWpLWkRPYoi-PpPa645SEBjwWZnd6c-ExZJBHU\")",
+      "Bash(docker compose build comparison-engine)",
+      "Bash(docker compose up -d comparison-engine)",
+      "Bash(curl -s http://localhost:8005/api/v1/configure-proxy -X POST -H \"Content-Type: application/json\" -d '{\"\"instruction\"\":\"\"test\"\"}')",
+      "Bash(python cli/generate-traffic.py --count 5 --interval 0.3)",
+      "Bash(docker compose build api-service)",
+      "Bash(docker compose up -d api-service)"
+    ],
+    "additionalDirectories": [
+      "\\tmp"
     ]
   }
 }

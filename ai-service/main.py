@@ -19,6 +19,7 @@ from models import ComparisonRequest, ComparisonResponse, HealthResponse
 from comparison.semantic_comparator import SemanticComparator
 from comparison.pii_masker import PIIMasker
 from comparison.risk_scorer import RiskScorer
+from comparison.llm_provider import create_provider
 from pydantic import BaseModel
 from typing import List
 import requests
@@ -87,12 +88,17 @@ async def lifespan(app: FastAPI):
     global comparator, pii_masker, risk_scorer
 
     logger.info("Initializing AI Comparison Service...")
-    gemini_api_key = os.getenv("GEMINI_API_KEY", "")
 
-    comparator = SemanticComparator(api_key=gemini_api_key)
+    # Build the LLM provider (Gemini, Ollama, or None for heuristic-only)
+    llm_provider = create_provider()
+    provider_name = type(llm_provider).__name__ if llm_provider else "heuristic-only"
+    logger.info(f"LLM provider: {provider_name}")
+
+    comparator = SemanticComparator(provider=llm_provider)
     pii_masker = PIIMasker()
     risk_scorer = RiskScorer()
 
+    _init_configurator()
     logger.info("AI Service initialized successfully")
     yield
     logger.info("Shutting down AI Service...")
@@ -104,16 +110,19 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Shadow API - AI Comparison Service",
-    description="Semantic comparison engine powered by Google Gemini",
-    version="1.0.0",
+    description="Semantic comparison engine with pluggable LLM backends (Gemini, Ollama, heuristic)",
+    version="1.1.0",
     lifespan=lifespan,
 )
 
+# CORS: read allowed origins from env (comma-separated). TODO: add production dashboard domain.
+_cors_origins = os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:3004,http://localhost:3000").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[o.strip() for o in _cors_origins],
     allow_methods=["*"],
     allow_headers=["*"],
+    allow_credentials=True,
 )
 
 Instrumentator().instrument(app).expose(app, endpoint="/metrics")
@@ -215,8 +224,14 @@ from pydantic import BaseModel
 class ConfigureRequest(BaseModel):
     instruction: str
 
-# Configurator instances
+# Configurator instances — shares the same LLM provider as comparator
 proxy_configurator = ProxyConfigurator()
+
+def _init_configurator():
+    """Re-init after lifespan sets up the provider."""
+    global proxy_configurator
+    provider = comparator.provider if comparator else None
+    proxy_configurator = ProxyConfigurator(provider=provider)
 # Note: In a real docker environment, the python app would need to mount the nginx.conf
 # For this platform, we assume /app/nginx.conf or similar is mounted, or 
 # it's located using an environment variable. We will point it to the absolute path 
@@ -258,9 +273,11 @@ async def configure_proxy(request: ConfigureRequest):
 
 @app.get("/api/v1/status")
 async def service_status():
+    provider_name = type(comparator.provider).__name__ if comparator and comparator.provider else "none"
     return {
         "service": "ai-comparison-service",
-        "gemini_configured": comparator.is_configured() if comparator else False,
+        "llm_provider": provider_name,
+        "llm_configured": comparator.is_configured() if comparator else False,
         "pii_masker_active": pii_masker is not None,
         "risk_scorer_active": risk_scorer is not None,
     }
@@ -280,42 +297,53 @@ async def website_test(request: WebsiteTestRequest):
         try:
             resp = await asyncio.to_thread(requests.get, full_url, timeout=5)
             duration = (time.time() - start) * 1000
-            return resp.status_code, resp.text, duration
-        except Exception:
-            return 0, "", 0
+            return resp.status_code, resp.text, duration, None
+        except Exception as e:
+            return 0, "", 0, str(e)
 
     for path in request.paths:
         prod_fut = fetch_path(request.production_url, path)
         shadow_fut = fetch_path(request.shadow_url, path)
-        
-        prod_status, prod_body, prod_time = await prod_fut
-        shadow_status, shadow_body, shadow_time = await shadow_fut
-        
+
+        prod_status, prod_body, prod_time, prod_err = await prod_fut
+        shadow_status, shadow_body, shadow_time, shadow_err = await shadow_fut
+
+        has_error = prod_err is not None or shadow_err is not None
+
         status_match = prod_status == shadow_status
         latency_delta = shadow_time - prod_time
-        
-        # Fast comparison
-        ai_result = await comparator.compare(
-            prod_body=prod_body, shadow_body=shadow_body, endpoint=path,
-            field_diffs=[], status_match=status_match, latency_delta_ms=latency_delta
-        )
-        
-        risk_score = risk_scorer.calculate(
-            similarity_score=ai_result.get("similarity_score", 0.5),
-            has_status_mismatch=not status_match,
-            latency_delta_ms=latency_delta,
-            field_diff_count=0, has_structural_changes=ai_result.get("has_structural_changes", False)
-        )
-        
-        results.append({
+
+        if has_error:
+            risk_score = 10.0
+            body_match = False
+        else:
+            ai_result = await comparator.compare(
+                prod_body=prod_body, shadow_body=shadow_body, endpoint=path,
+                field_diffs=[], status_match=status_match, latency_delta_ms=latency_delta
+            )
+            risk_score = risk_scorer.calculate(
+                similarity_score=ai_result.get("similarity_score", 0.5),
+                has_status_mismatch=not status_match,
+                latency_delta_ms=latency_delta,
+                field_diff_count=0, has_structural_changes=ai_result.get("has_structural_changes", False)
+            )
+            body_match = ai_result.get("similarity_score", 0) > 0.95
+
+        result_entry = {
             "path": path,
             "prod_status": prod_status,
             "shadow_status": shadow_status,
-            "body_match": ai_result.get("similarity_score", 0) > 0.95,
+            "body_match": body_match,
             "latency_delta_ms": round(latency_delta),
-            "risk_score": risk_score
-        })
-        
+            "risk_score": risk_score,
+            "error": has_error,
+        }
+        if prod_err:
+            result_entry["prod_error"] = prod_err
+        if shadow_err:
+            result_entry["shadow_error"] = shadow_err
+        results.append(result_entry)
+
     return results
 
 class NotificationConfigModel(BaseModel):

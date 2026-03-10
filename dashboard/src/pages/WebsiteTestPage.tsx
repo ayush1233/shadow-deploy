@@ -131,10 +131,18 @@ export default function WebsiteTestPage() {
                         <tbody>
                             {results.map((res, i) => (
                                 <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'var(--bg-card)' }}>
-                                    <td style={{ padding: '16px 24px', color: 'var(--text-primary)' }}>{res.path}</td>
-                                    <td style={{ padding: '16px 24px', color: res.prod_status === 200 ? 'var(--accent-green)' : 'var(--accent-yellow)' }}>{res.prod_status}</td>
-                                    <td style={{ padding: '16px 24px', color: res.shadow_status === 200 ? 'var(--accent-green)' : 'var(--accent-yellow)' }}>{res.shadow_status}</td>
-                                    <td style={{ padding: '16px 24px', color: res.body_match ? 'var(--accent-green)' : 'var(--accent-red)' }}>{res.body_match ? '✅' : '❌'}</td>
+                                    <td style={{ padding: '16px 24px', color: 'var(--text-primary)' }}>
+                                        {res.path}
+                                        {res.error && (
+                                            <div style={{ fontSize: 11, color: 'var(--accent-red)', marginTop: 4 }}>
+                                                {res.prod_error && <div>Prod: {res.prod_error}</div>}
+                                                {res.shadow_error && <div>Shadow: {res.shadow_error}</div>}
+                                            </div>
+                                        )}
+                                    </td>
+                                    <td style={{ padding: '16px 24px', color: res.error ? 'var(--accent-red)' : res.prod_status === 200 ? 'var(--accent-green)' : 'var(--accent-yellow)' }}>{res.error && res.prod_status === 0 ? 'ERR' : res.prod_status}</td>
+                                    <td style={{ padding: '16px 24px', color: res.error ? 'var(--accent-red)' : res.shadow_status === 200 ? 'var(--accent-green)' : 'var(--accent-yellow)' }}>{res.error && res.shadow_status === 0 ? 'ERR' : res.shadow_status}</td>
+                                    <td style={{ padding: '16px 24px', color: res.body_match ? 'var(--accent-green)' : 'var(--accent-red)' }}>{res.error ? '⚠️' : res.body_match ? '✅' : '❌'}</td>
                                     <td style={{ padding: '16px 24px', color: res.latency_delta_ms > 100 ? 'var(--accent-red)' : 'var(--text-secondary)' }}>{res.latency_delta_ms > 0 ? '+' : ''}{res.latency_delta_ms}ms</td>
                                     <td style={{ padding: '16px 24px' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

@@ -30,6 +30,8 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/actuator/**").permitAll()
                 .requestMatchers("/health").permitAll()
+                // Public health endpoint used by k8s/docker-compose health checks
+                .requestMatchers("/api/v1/ingest/health").permitAll()
                 .anyRequest().authenticated()
             )
             .addFilterBefore(apiKeyAuthFilter, UsernamePasswordAuthenticationFilter.class)

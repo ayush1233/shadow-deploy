@@ -31,4 +31,13 @@ public interface ComparisonRepository extends JpaRepository<ComparisonResultEnti
     
     @Query("SELECT c.severity AS severity, COUNT(c) AS count FROM ComparisonResultEntity c WHERE c.timestamp >= :since AND c.severity IS NOT NULL GROUP BY c.severity")
     List<Map<String, Object>> getSeverityBreakdownSince(@Param("since") Instant since);
+
+    @Query("SELECT c.endpoint AS endpoint, COUNT(c) AS total, " +
+           "SUM(CASE WHEN c.deterministicPass = false THEN 1 ELSE 0 END) AS mismatches " +
+           "FROM ComparisonResultEntity c WHERE c.timestamp >= :since AND c.endpoint IS NOT NULL " +
+           "GROUP BY c.endpoint ORDER BY mismatches DESC")
+    List<Map<String, Object>> getTopEndpointsSince(@Param("since") Instant since);
+
+    @Query("SELECT c.latencyDeltaMs FROM ComparisonResultEntity c WHERE c.timestamp >= :since AND c.latencyDeltaMs IS NOT NULL ORDER BY c.latencyDeltaMs")
+    List<Long> getLatencyDeltasSince(@Param("since") Instant since);
 }

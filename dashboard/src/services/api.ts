@@ -28,7 +28,8 @@ export const getSession = async () => {
     return session;
 };
 
-// ── Metrics (computed from comparisons table) ──
+// ── Metrics (computed client-side from Supabase for real-time dashboard) ──
+// Note: Backend also exposes GET /api/v1/metrics/summary for external consumers.
 export const getMetricsSummary = async () => {
     const { data: comparisons, error } = await supabase
         .from('comparisons')

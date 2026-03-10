@@ -1,10 +1,16 @@
 FROM node:18-alpine AS build
 
 WORKDIR /app
+
+# Supabase credentials injected via build args (no secrets in image layers)
+ARG VITE_SUPABASE_URL
+ARG VITE_SUPABASE_ANON_KEY
+ENV VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
+ENV VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
+
 COPY package*.json ./
 RUN npm ci
 
-COPY .env.local ./
 COPY . .
 RUN npm run build
 

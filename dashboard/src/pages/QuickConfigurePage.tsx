@@ -5,8 +5,8 @@ import { configureProxy } from '../services/api';
 export default function QuickConfigurePage() {
     const navigate = useNavigate();
     const [step, setStep] = useState(1);
-    const [prodUrl, setProdUrl] = useState('http://localhost:3000');
-    const [shadowUrl, setShadowUrl] = useState('http://localhost:4000');
+    const [prodUrl, setProdUrl] = useState('http://localhost:5001');
+    const [shadowUrl, setShadowUrl] = useState('http://localhost:5002');
     const [mirrorPercent, setMirrorPercent] = useState(100);
     const [compMode, setCompMode] = useState('Full comparison');
     const [enableAi, setEnableAi] = useState(true);

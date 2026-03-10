@@ -3,6 +3,7 @@ package com.shadow.platform.comparison.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.flipkart.zjsonpatch.DiffFlags;
 import com.flipkart.zjsonpatch.JsonDiff;
 import com.shadow.platform.comparison.model.ComparisonResult;
 import com.shadow.platform.comparison.model.ComparisonResult.FieldDiff;
@@ -103,7 +104,9 @@ public class DeterministicComparator {
                 removeIgnoredFields(shadowJson);
 
                 // JSON structural + value diff using zjsonpatch
-                JsonNode patchNode = JsonDiff.asJson(prodJson, shadowJson);
+                // ADD_ORIGINAL_VALUE_ON_REPLACE includes "fromValue" so we can show the old value in diffs
+                JsonNode patchNode = JsonDiff.asJson(prodJson, shadowJson,
+                        EnumSet.of(DiffFlags.ADD_ORIGINAL_VALUE_ON_REPLACE));
 
                 if (patchNode.size() > 0) {
                     bodyMatch = false;

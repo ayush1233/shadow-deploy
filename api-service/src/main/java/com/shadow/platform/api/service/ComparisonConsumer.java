@@ -54,29 +54,12 @@ public class ComparisonConsumer {
             entity.setProdStatusCode(getInteger(result, "prod_status_code"));
             entity.setProdResponseTimeMs(getLong(result, "prod_response_time_ms"));
             entity.setProdBodyHash(getString(result, "prod_body_hash"));
-            try {
-                String prodBodyStr = getString(result, "prod_body");
-                if (prodBodyStr != null) {
-                    entity.setProdBody(objectMapper.readValue(prodBodyStr, new TypeReference<Map<String, Object>>() {
-                    }));
-                }
-            } catch (Exception e) {
-                log.debug("Failed to parse prod_body");
-            }
+            entity.setProdBody(parseBodyField(result, "prod_body"));
 
             entity.setShadowStatusCode(getInteger(result, "shadow_status_code"));
             entity.setShadowResponseTimeMs(getLong(result, "shadow_response_time_ms"));
             entity.setShadowBodyHash(getString(result, "shadow_body_hash"));
-            try {
-                String shadowBodyStr = getString(result, "shadow_body");
-                if (shadowBodyStr != null) {
-                    entity.setShadowBody(
-                            objectMapper.readValue(shadowBodyStr, new TypeReference<Map<String, Object>>() {
-                            }));
-                }
-            } catch (Exception e) {
-                log.debug("Failed to parse shadow_body");
-            }
+            entity.setShadowBody(parseBodyField(result, "shadow_body"));
 
             entity.setStatusMatch(getBoolean(result, "status_match"));
             entity.setHeadersMatch(getBoolean(result, "headers_match"));
@@ -169,5 +152,42 @@ public class ComparisonConsumer {
         if (val instanceof String)
             return Boolean.parseBoolean((String) val);
         return null;
+    }
+
+    /**
+     * Parse a body field that may arrive as a String (JSON), a Map (already parsed), or null.
+     * Handles the case where Kafka deserializer delivers nested objects instead of strings.
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> parseBodyField(Map<String, Object> result, String key) {
+        Object val = result.get(key);
+        if (val == null) return null;
+
+        // Already a Map (Kafka JsonDeserializer parsed it)
+        if (val instanceof Map) {
+            return (Map<String, Object>) val;
+        }
+
+        // String containing JSON
+        if (val instanceof String) {
+            String str = (String) val;
+            if (str.isBlank()) return null;
+            try {
+                return objectMapper.readValue(str, new TypeReference<Map<String, Object>>() {});
+            } catch (Exception e) {
+                log.warn("Failed to parse {} as JSON: {}", key, e.getMessage());
+                // Store as a single-entry map so the body isn't lost
+                return Map.of("_raw", str);
+            }
+        }
+
+        // Fallback: serialize then deserialize
+        try {
+            String json = objectMapper.writeValueAsString(val);
+            return objectMapper.readValue(json, new TypeReference<Map<String, Object>>() {});
+        } catch (Exception e) {
+            log.warn("Failed to convert {} to Map: {}", key, e.getMessage());
+            return null;
+        }
     }
 }

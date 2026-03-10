@@ -70,5 +70,5 @@ Write-Host "Primary App is running on port: $ProdPort"
 Write-Host "Shadow App is running on port:  $ShadowPort"
 Write-Host ""
 Write-Host "👉 Send your traffic to http://localhost:8080/ to test!" -ForegroundColor Cyan
-Write-Host "👉 View the results at  http://localhost:3002/" -ForegroundColor Cyan
+Write-Host "👉 View the results at  http://localhost:3004/" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan

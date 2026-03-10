@@ -175,11 +175,18 @@ Ensure all 9+ services (Kafka, Redis, Spring Boot APIs, AI Service) are running 
 make health
 ```
 
-### Step 4: Generate Demo Traffic
-Populate your dashboard with data instantly by running the synthetic traffic generator:
+### Step 4: Start Mock API Servers
+Start the V1 (production) and V2 (shadow) mock APIs with deliberate differences:
 
 ```bash
-python cli/demo.py
+python cli/mock-servers.py
+```
+
+### Step 5: Generate Traffic & Populate Dashboard
+Send traffic through both APIs and submit the results for comparison:
+
+```bash
+python cli/generate-traffic.py --count 30
 ```
 
 ### 🛠️ Common Makefile Commands
@@ -198,13 +205,16 @@ python cli/demo.py
 
 | Service | URL | Description |
 |---------|-----|-------------|
-| **Dashboard** | http://localhost:3002 | React dashboard (Stripe-stable theme) |
+| **Dashboard** | http://localhost:3004 | React dashboard (dev mode via Vite) |
 | **NGINX Proxy** | http://localhost:8080 | Traffic mirror & routing point |
-| **Sample API v1** | http://localhost:3003 | "Production" mock target |
-| **Sample API v2** | http://localhost:4001 | "Shadow" mock target (with latency/bugs) |
+| **Mock API v1** | http://localhost:5001 | "Production" mock server |
+| **Mock API v2** | http://localhost:5002 | "Shadow" mock server (with differences) |
+| **Ingestion Service** | http://localhost:8081 | Traffic event ingestion |
+| **Comparison Engine** | http://localhost:8082 | Redis join + comparison |
 | **API Service** | http://localhost:8083 | Main control plane API |
 | **AI Service** | http://localhost:8000 | Gemini comparison & configuration |
-| **Grafana** | http://localhost:3001 | Real-time performance metrics |
+| **Kafka** | localhost:9092 | Message broker |
+| **Redis** | localhost:6379 | Correlation cache |
 
 ---
 
@@ -359,7 +369,7 @@ Risk = (1 - similarity_score) × 3.5     # 35% weight
 | 5–7 | High | 🔴 Manual review required |
 | 7–10 | Critical | 🚫 Block deployment |
 
-Without a Gemini API key, the service falls back to heuristic comparison rules.
+Without a Gemini API key (or if the key returns errors), the service falls back to **smart programmatic analysis** that generates meaningful explanations from the field-level diffs — including added/removed/modified field counts, impact assessment, and confidence scores.
 
 ---
 
@@ -606,7 +616,9 @@ shadow-deploy/
 ├── gateway-plugin/                 # Kong API gateway plugin
 ├── cli/                            # Command-line tools
 │   ├── shadowctl.py                # Report & deployment CLI
-│   └── configure-proxy.py          # AI NGINX configurator CLI
+│   ├── configure-proxy.py          # AI NGINX configurator CLI
+│   ├── mock-servers.py             # V1/V2 mock APIs with deliberate diffs
+│   └── generate-traffic.py         # Traffic generator (SDK ingestion)
 ├── templates/                      # Alert templates
 │   ├── slack-alert.json
 │   └── email-report.html

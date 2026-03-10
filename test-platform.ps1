@@ -107,5 +107,5 @@ Write-Host ""
 
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "Test complete! Check the dashboard at:  " -ForegroundColor Cyan
-Write-Host "http://localhost:3002                   " -ForegroundColor White
+Write-Host "http://localhost:3004                   " -ForegroundColor White
 Write-Host "========================================" -ForegroundColor Cyan

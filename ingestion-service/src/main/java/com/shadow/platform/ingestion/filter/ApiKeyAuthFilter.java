@@ -40,9 +40,12 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
                 }
             }
         }
-        // Default key for development
-        apiKeyToTenant.putIfAbsent("sk-shadow-default-key-change-me", "default");
-        apiKeyToTenant.putIfAbsent("sk-shadow-demo-key-change-me", "demo");
+        // Dev-only default keys — configure real keys via shadow.security.api-keys in production
+        String profile = System.getenv("SPRING_PROFILES_ACTIVE");
+        if (profile == null || !profile.contains("prod")) {
+            apiKeyToTenant.putIfAbsent("sk-shadow-default-key-change-me", "default");
+            apiKeyToTenant.putIfAbsent("sk-shadow-demo-key-change-me", "demo");
+        }
     }
 
     @Override
@@ -92,6 +95,7 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
-        return path.startsWith("/actuator") || path.equals("/health");
+        return path.startsWith("/actuator") || path.equals("/health")
+                || path.equals("/api/v1/ingest/health");
     }
 }

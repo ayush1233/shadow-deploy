@@ -42,8 +42,8 @@ public class AIExplanationService {
     public CompletableFuture<AIExplanation> generateExplanation(String requestId, String responseV1, String responseV2,
             List<FieldDiff> diffs) {
         if (!enabled || geminiApiKey == null || geminiApiKey.isBlank()) {
-            log.warn("AI Explanation is disabled or API key is missing. Skipping for request_id={}", requestId);
-            return CompletableFuture.completedFuture(getFallbackExplanation());
+            log.warn("AI Explanation is disabled or API key is missing. Using smart fallback for request_id={}", requestId);
+            return CompletableFuture.completedFuture(buildSmartFallback(responseV1, responseV2, diffs));
         }
 
         log.info("AI explanation started [request_id={}]", requestId);
@@ -96,12 +96,102 @@ public class AIExplanationService {
                 return CompletableFuture.completedFuture(explanation);
             } else {
                 log.error("Invalid response from Gemini API for request_id={}", requestId);
-                return CompletableFuture.completedFuture(getFallbackExplanation());
+                return CompletableFuture.completedFuture(buildSmartFallback(responseV1, responseV2, diffs));
             }
         } catch (Exception e) {
-            log.error("AI explanation failed for request_id={}: {}", requestId, e.getMessage(), e);
-            return CompletableFuture.completedFuture(getFallbackExplanation());
+            log.warn("AI explanation failed for request_id={}: {}. Using smart fallback.", requestId, e.getMessage());
+            return CompletableFuture.completedFuture(buildSmartFallback(responseV1, responseV2, diffs));
         }
+    }
+
+    /**
+     * Generate a smart programmatic explanation from the field diffs
+     * when the Gemini API is unavailable.
+     */
+    private AIExplanation buildSmartFallback(String responseV1, String responseV2, List<FieldDiff> diffs) {
+        if (diffs == null || diffs.isEmpty()) {
+            return new AIExplanation(
+                    "Responses differ in content",
+                    "The response bodies differ but no structured field-level differences were detected. "
+                            + "This may indicate formatting changes, whitespace differences, or dynamic fields like timestamps.",
+                    "Low — likely cosmetic or non-functional changes",
+                    0.6);
+        }
+
+        int added = 0, removed = 0, modified = 0, typeChanged = 0;
+        StringBuilder details = new StringBuilder();
+
+        for (FieldDiff diff : diffs) {
+            String type = diff.getDiffType() != null ? diff.getDiffType().toUpperCase() : "MODIFIED";
+            switch (type) {
+                case "ADDED" -> added++;
+                case "REMOVED" -> removed++;
+                case "TYPE_CHANGED" -> typeChanged++;
+                default -> modified++;
+            }
+        }
+
+        // Build summary
+        StringBuilder summary = new StringBuilder();
+        if (added > 0) summary.append(added).append(" field(s) added");
+        if (removed > 0) {
+            if (!summary.isEmpty()) summary.append(", ");
+            summary.append(removed).append(" field(s) removed");
+        }
+        if (modified > 0) {
+            if (!summary.isEmpty()) summary.append(", ");
+            summary.append(modified).append(" field(s) modified");
+        }
+        if (typeChanged > 0) {
+            if (!summary.isEmpty()) summary.append(", ");
+            summary.append(typeChanged).append(" field(s) changed type");
+        }
+        summary.append(" between v1 and v2 responses.");
+
+        // Build detailed analysis
+        details.append("Field-level analysis:\n");
+        int shown = 0;
+        for (FieldDiff diff : diffs) {
+            if (shown >= 8) {
+                details.append(String.format("... and %d more differences.\n", diffs.size() - shown));
+                break;
+            }
+            String path = diff.getPath() != null ? diff.getPath() : "unknown";
+            String type = diff.getDiffType() != null ? diff.getDiffType() : "MODIFIED";
+            String prodVal = diff.getProdValue() != null ? truncate(diff.getProdValue(), 60) : "null";
+            String shadowVal = diff.getShadowValue() != null ? truncate(diff.getShadowValue(), 60) : "null";
+
+            switch (type.toUpperCase()) {
+                case "ADDED" -> details.append(String.format("• [ADDED] '%s' = %s (new in v2)\n", path, shadowVal));
+                case "REMOVED" -> details.append(String.format("• [REMOVED] '%s' = %s (missing in v2)\n", path, prodVal));
+                default -> details.append(String.format("• [%s] '%s': %s → %s\n", type, path, prodVal, shadowVal));
+            }
+            shown++;
+        }
+
+        // Determine impact
+        String impact;
+        double confidence;
+        if (removed > 0 || typeChanged > 0) {
+            impact = "Medium — removed or type-changed fields may break existing API consumers";
+            confidence = 0.85;
+        } else if (added > 0 && modified == 0) {
+            impact = "Low — only additive changes detected, backward-compatible";
+            confidence = 0.9;
+        } else if (modified > 0 && removed == 0) {
+            impact = "Medium — value changes detected, verify downstream consumers";
+            confidence = 0.8;
+        } else {
+            impact = "High — multiple breaking changes including removed fields and type changes";
+            confidence = 0.75;
+        }
+
+        return new AIExplanation(summary.toString(), details.toString(), impact, confidence);
+    }
+
+    private String truncate(String value, int maxLen) {
+        if (value == null) return "null";
+        return value.length() > maxLen ? value.substring(0, maxLen) + "..." : value;
     }
 
     private AIExplanation getFallbackExplanation() {

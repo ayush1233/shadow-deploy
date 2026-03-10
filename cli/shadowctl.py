@@ -107,7 +107,7 @@ SUPABASE_DB_PASSWORD={supabase_db_pass}
 GEMINI_API_KEY={gemini_key}
 
 # Service Ports
-DASHBOARD_PORT=3002
+DASHBOARD_PORT=3004
 NGINX_PROXY_PORT=8080
 API_SERVICE_PORT=8083
 AI_SERVICE_PORT=8000
@@ -317,7 +317,7 @@ def cmd_status(args):
         print(f"  {icon} {svc['name']}")
 
     print(f"\n  Services: {c(str(healthy_count), Colors.GREEN)}/{len(SERVICES)} running")
-    print(f"  Dashboard: {c('http://localhost:3002', Colors.CYAN)}")
+    print(f"  Dashboard: {c('http://localhost:3004', Colors.CYAN)}")
     print(f"  API:       {c('http://localhost:8083', Colors.CYAN)}")
     print(f"  AI:        {c('http://localhost:8005', Colors.CYAN)}")
     print(f"  Grafana:   {c('http://localhost:3001', Colors.CYAN)}")
@@ -348,7 +348,7 @@ def cmd_report(args):
     print(f"\n  {c('Overview', Colors.PURPLE)}")
     print(f"  Deployment Risk Score:  {c(f'{risk_score:.1f}', risk_color)} / 10.0")
     print(f"  Status:                 {c(status, status_color)}")
-    print(f"\n  Dashboard: {c('http://localhost:3002', Colors.CYAN)}")
+    print(f"\n  Dashboard: {c('http://localhost:3004', Colors.CYAN)}")
     print()
 
 

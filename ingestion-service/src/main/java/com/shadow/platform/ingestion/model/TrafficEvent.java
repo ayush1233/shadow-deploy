@@ -8,12 +8,12 @@ import java.util.Map;
 
 public class TrafficEvent {
 
+    // Optional: enrichEvent() in IngestionController generates these if missing
     @JsonProperty("request_id")
-    @NotBlank(message = "request_id is required")
     private String requestId;
 
+    // Optional: resolved from header, API key, or TenantFilter if missing
     @JsonProperty("tenant_id")
-    @NotBlank(message = "tenant_id is required")
     private String tenantId;
 
     @JsonProperty("timestamp")
