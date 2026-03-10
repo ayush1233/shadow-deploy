@@ -26,7 +26,8 @@ function Test-Command {
     if (Get-Command $Command -ErrorAction SilentlyContinue) {
         Write-Host "  [OK] $Name" -ForegroundColor Green
         return $true
-    } else {
+    }
+    else {
         Write-Host "  [MISSING] $Name" -ForegroundColor Red
         return $false
     }
@@ -53,16 +54,19 @@ function Test-CommandVersion {
             if ($major -ge $MinMajor) {
                 Write-Host "  [OK] $Name (v$ver)" -ForegroundColor Green
                 return $true
-            } else {
+            }
+            else {
                 $outdatedMsg = "  [OUTDATED] $Name (v$ver, need v$MinMajor or higher)"
                 Write-Host $outdatedMsg -ForegroundColor Yellow
                 return $false
             }
-        } else {
+        }
+        else {
             Write-Host "  [OK] $Name" -ForegroundColor Green
             return $true
         }
-    } catch {
+    }
+    catch {
         Write-Host "  [MISSING] $Name" -ForegroundColor Red
         return $false
     }
@@ -81,7 +85,8 @@ if (-not (Test-Command "docker-compose" "Docker Compose")) {
     try {
         docker compose version 2>$null | Out-Null
         Write-Host "  [OK] Docker Compose (v2 plugin)" -ForegroundColor Green
-    } catch {
+    }
+    catch {
         $CriticalMissing = $true
     }
 }
@@ -123,6 +128,23 @@ $SupabaseDbPassword = Read-Host "  Enter your Supabase DB Password" -AsSecureStr
 $SupabaseDbPasswordPlain = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($SupabaseDbPassword))
 
 Write-Host ""
+Write-Color "  Target Application (V1 / V2 backends):" White
+Write-Color "  Use 'host.docker.internal' to reach apps running on your host machine." DarkGray
+Write-Host ""
+
+$ProdBackendHost = Read-Host "  V1 (production) backend host [host.docker.internal]"
+if ([string]::IsNullOrWhiteSpace($ProdBackendHost)) { $ProdBackendHost = "host.docker.internal" }
+
+$ProdBackendPort = Read-Host "  V1 (production) backend port [5001]"
+if ([string]::IsNullOrWhiteSpace($ProdBackendPort)) { $ProdBackendPort = "5001" }
+
+$ShadowBackendHost = Read-Host "  V2 (shadow) backend host [host.docker.internal]"
+if ([string]::IsNullOrWhiteSpace($ShadowBackendHost)) { $ShadowBackendHost = "host.docker.internal" }
+
+$ShadowBackendPort = Read-Host "  V2 (shadow) backend port [5002]"
+if ([string]::IsNullOrWhiteSpace($ShadowBackendPort)) { $ShadowBackendPort = "5002" }
+
+Write-Host ""
 
 # -- Step 3: Generate Configuration Files --
 Write-Color "  Step 3: Generating Configuration" Cyan
@@ -142,6 +164,12 @@ $envContent += 'SUPABASE_DB_PASSWORD=' + $SupabaseDbPasswordPlain + $nl
 $envContent += $nl
 $envContent += '# AI Service' + $nl
 $envContent += 'GEMINI_API_KEY=' + $GeminiApiKeyPlain + $nl
+$envContent += $nl
+$envContent += '# Target Application Backends' + $nl
+$envContent += 'PROD_BACKEND_HOST=' + $ProdBackendHost + $nl
+$envContent += 'PROD_BACKEND_PORT=' + $ProdBackendPort + $nl
+$envContent += 'SHADOW_BACKEND_HOST=' + $ShadowBackendHost + $nl
+$envContent += 'SHADOW_BACKEND_PORT=' + $ShadowBackendPort + $nl
 $envContent += $nl
 $envContent += '# Service Ports - change if conflicts' + $nl
 $envContent += 'DASHBOARD_PORT=3004' + $nl

@@ -141,6 +141,24 @@ echo ""
 SUPABASE_DB_PASSWORD=${SUPABASE_DB_PASSWORD:-}
 
 echo ""
+echo -e "  ${BOLD}Target Application (V1 / V2 backends):${NC}"
+echo -e "  ${DIM}  These are the apps you want to shadow test.${NC}"
+echo -e "  ${DIM}  Use 'host.docker.internal' to reach apps running on your host machine.${NC}"
+echo ""
+
+read -p "  V1 (production) backend host [host.docker.internal]: " PROD_BACKEND_HOST
+PROD_BACKEND_HOST=${PROD_BACKEND_HOST:-host.docker.internal}
+
+read -p "  V1 (production) backend port [5001]: " PROD_BACKEND_PORT
+PROD_BACKEND_PORT=${PROD_BACKEND_PORT:-5001}
+
+read -p "  V2 (shadow) backend host [host.docker.internal]: " SHADOW_BACKEND_HOST
+SHADOW_BACKEND_HOST=${SHADOW_BACKEND_HOST:-host.docker.internal}
+
+read -p "  V2 (shadow) backend port [5002]: " SHADOW_BACKEND_PORT
+SHADOW_BACKEND_PORT=${SHADOW_BACKEND_PORT:-5002}
+
+echo ""
 
 # ── Step 3: Generate Configuration Files ──
 echo -e "${CYAN}${BOLD}  Step 3: Generating Configuration${NC}"
@@ -158,6 +176,12 @@ SUPABASE_DB_PASSWORD=${SUPABASE_DB_PASSWORD}
 
 # AI Service
 GEMINI_API_KEY=${GEMINI_API_KEY}
+
+# Target Application Backends
+PROD_BACKEND_HOST=${PROD_BACKEND_HOST}
+PROD_BACKEND_PORT=${PROD_BACKEND_PORT}
+SHADOW_BACKEND_HOST=${SHADOW_BACKEND_HOST}
+SHADOW_BACKEND_PORT=${SHADOW_BACKEND_PORT}
 
 # Service Ports (change if conflicts)
 DASHBOARD_PORT=3004

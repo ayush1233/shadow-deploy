@@ -58,7 +58,7 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
-    entrypoint: ["/bin/sh", "-c"]
+    entrypoint: [ "/bin/sh", "-c" ]
     command:
       - |
         echo 'Creating Kafka topics...'
@@ -131,8 +131,11 @@ services:
     ports:
       - "8080:80"
       - "8443:443"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    environment:
+      - PROD_BACKEND_HOST=${PROD_BACKEND_HOST:-host.docker.internal}
+      - PROD_BACKEND_PORT=${PROD_BACKEND_PORT:-5001}
+      - SHADOW_BACKEND_HOST=${SHADOW_BACKEND_HOST:-host.docker.internal}
+      - SHADOW_BACKEND_PORT=${SHADOW_BACKEND_PORT:-5002}
     networks:
       - shadow-net
     depends_on:
