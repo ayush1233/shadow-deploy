@@ -83,6 +83,10 @@ shadow:
       - x-request-id
       - x-trace-id
       - server
+  noise:
+    min-samples: 10
+    threshold-percent: 80
+    ttl-hours: 24
 
 management:
   endpoints:

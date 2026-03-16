@@ -38,8 +38,3 @@ scrape_configs:
       - targets: ['nginx-proxy:80']
 
 
-  - job_name: 'elasticsearch'
-    metrics_path: '/_prometheus/metrics'
-    scrape_interval: 30s
-    static_configs:
-      - targets: ['elasticsearch:9200']

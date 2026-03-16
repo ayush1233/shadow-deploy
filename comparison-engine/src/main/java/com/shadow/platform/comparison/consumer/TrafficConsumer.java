@@ -6,6 +6,7 @@ import com.shadow.platform.comparison.service.AIComparisonClient;
 import com.shadow.platform.comparison.service.AIExplanationService;
 import com.shadow.platform.comparison.service.CorrelationService;
 import com.shadow.platform.comparison.service.DeterministicComparator;
+import com.shadow.platform.comparison.service.NoiseDetectionService;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
@@ -15,7 +16,10 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Kafka consumer that processes both production and shadow traffic events,
@@ -31,6 +35,7 @@ public class TrafficConsumer {
     private final DeterministicComparator deterministicComparator;
     private final AIComparisonClient aiComparisonClient;
     private final AIExplanationService aiExplanationService;
+    private final NoiseDetectionService noiseDetectionService;
     private final KafkaTemplate<String, ComparisonResult> kafkaTemplate;
     private final ObjectMapper objectMapper;
     private final Counter processedCounter;
@@ -46,12 +51,14 @@ public class TrafficConsumer {
             DeterministicComparator deterministicComparator,
             AIComparisonClient aiComparisonClient,
             AIExplanationService aiExplanationService,
+            NoiseDetectionService noiseDetectionService,
             KafkaTemplate<String, ComparisonResult> kafkaTemplate,
             MeterRegistry meterRegistry) {
         this.correlationService = correlationService;
         this.deterministicComparator = deterministicComparator;
         this.aiComparisonClient = aiComparisonClient;
         this.aiExplanationService = aiExplanationService;
+        this.noiseDetectionService = noiseDetectionService;
         this.kafkaTemplate = kafkaTemplate;
         this.objectMapper = new ObjectMapper();
         this.objectMapper.findAndRegisterModules();
@@ -91,16 +98,29 @@ public class TrafficConsumer {
         String requestId = getString(prodData, "request_id");
 
         try {
-            // ── Step 1: Deterministic Comparison ──
-            ComparisonResult result = deterministicComparator.compare(prodData, shadowData);
+            // ── Step 1: Get noisy fields for this tenant/endpoint ──
+            String endpoint = getString(prodData, "endpoint");
+            String tenantId = getString(prodData, "tenant_id");
+            Set<String> noisyFields = noiseDetectionService.getNoisyFields(tenantId, endpoint);
 
-            // ── Step 2: AI Comparison (only if deterministic detected mismatch) ──
+            // ── Step 2: Deterministic Comparison (with noise awareness) ──
+            ComparisonResult result = deterministicComparator.compare(prodData, shadowData, noisyFields);
+
+            // ── Step 2.5: Feed diffs back for noise learning ──
+            if (result.getFieldDiffs() != null && !result.getFieldDiffs().isEmpty()) {
+                List<String> diffPaths = result.getFieldDiffs().stream()
+                        .map(ComparisonResult.FieldDiff::getPath)
+                        .collect(Collectors.toList());
+                noiseDetectionService.recordDiffs(tenantId, endpoint, diffPaths);
+            }
+
+            // ── Step 3: AI Comparison (only if deterministic detected mismatch) ──
             if (!result.isDeterministicPass()) {
                 String prodBody = getString(prodData, "response_body");
                 String shadowBody = getString(shadowData, "response_body");
                 result = aiComparisonClient.enrichWithAI(result, prodBody, shadowBody);
 
-                // ── Step 2.5: AI Explanation ──
+                // ── Step 3.5: AI Explanation ──
                 if (!result.isDeterministicPass()
                         || (result.getSimilarityScore() != null && result.getSimilarityScore() < 0.95)) {
                     try {
@@ -121,11 +141,11 @@ public class TrafficConsumer {
             result.setProdBody(getString(prodData, "response_body"));
             result.setShadowBody(getString(shadowData, "response_body"));
 
-            // ── Step 3: Publish result to Kafka ──
+            // ── Step 4: Publish result to Kafka ──
             String key = result.getTenantId() + ":" + result.getRequestId();
             kafkaTemplate.send(comparisonResultsTopic, key, result);
 
-            // ── Step 4: Alert if critical ──
+            // ── Step 5: Alert if critical ──
             if ("critical".equalsIgnoreCase(result.getSeverity()) ||
                     "high".equalsIgnoreCase(result.getSeverity())) {
                 kafkaTemplate.send(alertsTopic, key, result);

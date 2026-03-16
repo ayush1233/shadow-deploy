@@ -158,6 +158,9 @@ SHADOW_BACKEND_HOST=${SHADOW_BACKEND_HOST:-host.docker.internal}
 read -p "  V2 (shadow) backend port [5002]: " SHADOW_BACKEND_PORT
 SHADOW_BACKEND_PORT=${SHADOW_BACKEND_PORT:-5002}
 
+read -p "  Mirror percentage (0-100, how much traffic to shadow) [100]: " MIRROR_PERCENTAGE
+MIRROR_PERCENTAGE=${MIRROR_PERCENTAGE:-100}
+
 echo ""
 
 # ── Step 3: Generate Configuration Files ──
@@ -182,6 +185,9 @@ PROD_BACKEND_HOST=${PROD_BACKEND_HOST}
 PROD_BACKEND_PORT=${PROD_BACKEND_PORT}
 SHADOW_BACKEND_HOST=${SHADOW_BACKEND_HOST}
 SHADOW_BACKEND_PORT=${SHADOW_BACKEND_PORT}
+
+# Traffic Mirroring
+MIRROR_PERCENTAGE=${MIRROR_PERCENTAGE}
 
 # Service Ports (change if conflicts)
 DASHBOARD_PORT=3004

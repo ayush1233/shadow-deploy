@@ -19,7 +19,6 @@ import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 /**
  * Deterministic comparison engine.
@@ -53,6 +52,15 @@ public class DeterministicComparator {
     }
 
     public ComparisonResult compare(Map<String, Object> prodData, Map<String, Object> shadowData) {
+        return compare(prodData, shadowData, Collections.emptySet());
+    }
+
+    /**
+     * Compare production vs shadow data, treating fields in noisyFields
+     * as expected noise (tagged NOISE instead of CHANGED).
+     */
+    public ComparisonResult compare(Map<String, Object> prodData, Map<String, Object> shadowData,
+                                    Set<String> noisyFields) {
         ComparisonResult result = new ComparisonResult();
         result.setTimestamp(Instant.now());
 
@@ -130,13 +138,20 @@ public class DeterministicComparator {
                             prodVal = op.get("fromValue").toString();
                         }
 
-                        String diffType = switch (operation) {
-                            case "add" -> "ADDED";
-                            case "remove" -> "REMOVED";
-                            case "replace" -> "CHANGED";
-                            case "move" -> "MOVED";
-                            default -> "UNKNOWN";
-                        };
+                        String diffType;
+                        boolean isNoise = isNoisyPath(path, noisyFields);
+
+                        if (isNoise) {
+                            diffType = "NOISE";
+                        } else {
+                            diffType = switch (operation) {
+                                case "add" -> "ADDED";
+                                case "remove" -> "REMOVED";
+                                case "replace" -> "CHANGED";
+                                case "move" -> "MOVED";
+                                default -> "UNKNOWN";
+                            };
+                        }
 
                         diffs.add(new FieldDiff(path, prodVal, shadowVal, diffType));
                     }
@@ -159,9 +174,18 @@ public class DeterministicComparator {
             }
         }
 
+        result.setFieldDiffs(diffs);
+
+        // Count real (non-noise) diffs for bodyMatch
+        long realDiffs = diffs.stream()
+                .filter(d -> !"NOISE".equals(d.getDiffType()))
+                .count();
+        if (realDiffs == 0 && bodyMatch == false && !diffs.isEmpty()) {
+            // All diffs were noise — treat as a match
+            bodyMatch = true;
+        }
         result.setBodyMatch(bodyMatch);
         result.setStructureMatch(structureMatch);
-        result.setFieldDiffs(diffs);
 
         // ── Overall deterministic result ──
         boolean pass = result.isStatusMatch() && result.isBodyMatch() && result.isHeadersMatch();
@@ -177,6 +201,24 @@ public class DeterministicComparator {
                 result.getRequestId(), pass, diffs.size());
 
         return result;
+    }
+
+    /**
+     * Checks if a JSON path matches any known noisy field.
+     * Matches both exact paths (e.g., "/timestamp") and
+     * leaf field names (e.g., path "/data/created_at" matches noisy field "created_at").
+     */
+    private boolean isNoisyPath(String path, Set<String> noisyFields) {
+        if (noisyFields.isEmpty()) return false;
+
+        // Exact match: "/timestamp"
+        if (noisyFields.contains(path)) return true;
+
+        // Leaf-name match: "/data/0/created_at" → "created_at"
+        String leaf = path.contains("/")
+                ? path.substring(path.lastIndexOf('/') + 1)
+                : path;
+        return noisyFields.contains(leaf) || noisyFields.contains("/" + leaf);
     }
 
     private void removeIgnoredFields(JsonNode node) {

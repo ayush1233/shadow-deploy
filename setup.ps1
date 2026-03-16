@@ -144,6 +144,9 @@ if ([string]::IsNullOrWhiteSpace($ShadowBackendHost)) { $ShadowBackendHost = "ho
 $ShadowBackendPort = Read-Host "  V2 (shadow) backend port [5002]"
 if ([string]::IsNullOrWhiteSpace($ShadowBackendPort)) { $ShadowBackendPort = "5002" }
 
+$MirrorPercentage = Read-Host "  Mirror percentage (0-100, how much traffic to shadow) [100]"
+if ([string]::IsNullOrWhiteSpace($MirrorPercentage)) { $MirrorPercentage = "100" }
+
 Write-Host ""
 
 # -- Step 3: Generate Configuration Files --
@@ -170,6 +173,9 @@ $envContent += 'PROD_BACKEND_HOST=' + $ProdBackendHost + $nl
 $envContent += 'PROD_BACKEND_PORT=' + $ProdBackendPort + $nl
 $envContent += 'SHADOW_BACKEND_HOST=' + $ShadowBackendHost + $nl
 $envContent += 'SHADOW_BACKEND_PORT=' + $ShadowBackendPort + $nl
+$envContent += $nl
+$envContent += '# Traffic Mirroring' + $nl
+$envContent += 'MIRROR_PERCENTAGE=' + $MirrorPercentage + $nl
 $envContent += $nl
 $envContent += '# Service Ports - change if conflicts' + $nl
 $envContent += 'DASHBOARD_PORT=3004' + $nl
