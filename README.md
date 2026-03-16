@@ -19,6 +19,9 @@
 - [Quick Start](#-quick-start)
 - [Dashboard](#-dashboard)
 - [Components Deep Dive](#-components-deep-dive)
+- [Advanced Features](#-advanced-features)
+  - [Traffic Percentage Control](#traffic-percentage-control)
+  - [Noise Detection](#noise-detection)
 - [AI Comparison Engine (Gemini)](#-ai-comparison-engine-gemini)
 - [Traffic Ingestion Modes](#-traffic-ingestion-modes)
 - [SDKs & Plugins](#-sdks--plugins)
@@ -42,7 +45,7 @@ Deploying API changes is risky. Even with unit tests, integration tests, and sta
 
 ### The Solution: Shadow Deployment
 
-Instead of hoping your tests catch everything, **mirror 100% of your real production traffic** to your new API version, compare every single response, and let AI tell you if it's safe to ship.
+Instead of hoping your tests catch everything, **mirror real production traffic** (all of it, or just a configurable percentage) to your new API version, compare every single response with AI, and get a deployment risk score before you ship.
 
 **Zero user impact. Real traffic. Complete confidence.**
 
@@ -331,8 +334,74 @@ The core engine that pairs and compares responses:
    - Response header diff
    - JSON deep diff (field-level)
    - Response time delta
-3. **AI Escalation** — If deterministic checks find mismatches, the pair is sent to the AI service for semantic analysis
-4. **Risk Scoring** — Weighted formula produces a 0–10 score
+3. **Noise Detection** — Known noisy fields (e.g., `timestamp`, `request_id`) are tagged `NOISE` and excluded from mismatch counts
+4. **AI Escalation** — If deterministic checks find real mismatches, the pair is sent to the AI service for semantic analysis
+5. **Risk Scoring** — Weighted formula produces a 0–10 score
+
+---
+
+## ⚡ Advanced Features
+
+### Traffic Percentage Control
+
+Control what percentage of production traffic gets mirrored to the shadow backend. Set in `.env` or via the setup wizard:
+
+```bash
+# Mirror only 10% of traffic (safe for high-traffic production systems)
+MIRROR_PERCENTAGE=10
+```
+
+Uses NGINX `split_clients` to hash each request ID — deterministic, stateless, and zero-overhead.
+
+| Value | Effect |
+|-------|--------|
+| `100` | All traffic mirrored (default) |
+| `50` | Half of all requests mirrored |
+| `10` | 10% sampled — good for high-traffic APIs |
+| `0` | Shadow testing paused |
+
+### Noise Detection
+
+Eliminate false-positive mismatches caused by fields that are inherently different on every request (timestamps, request IDs, session tokens).
+
+**Two layers of noise management:**
+
+#### 1. Auto-Detection (Inspired by Twitter Diffy)
+After each comparison, the engine tracks which JSON paths differed. If a field changes in **>80% of comparisons** for the same `tenant:endpoint` pair, it is automatically flagged as "noisy" and tagged accordingly in future comparisons.
+
+```
+After 10+ comparisons of GET /api/users:
+  /timestamp   → differs 100% of the time → auto-flagged as NOISE
+  /request_id  → differs 100% of the time → auto-flagged as NOISE
+  /email       → differs 2% of the time   → treated as real diff
+```
+
+Noise profiles are scoped per `{tenant_id}:{endpoint}` and refresh every 24 hours via Redis TTL.
+
+#### 2. Manual Field Management (REST API)
+
+Add or remove ignored fields without restarting any services:
+
+```bash
+# Add a field to ignore globally
+curl -X POST http://localhost:8082/api/v1/noise-fields \
+  -H 'Content-Type: application/json' \
+  -d '{"field": "updated_at"}'
+
+# List all manually ignored fields
+curl http://localhost:8082/api/v1/noise-fields
+
+# See auto-detected noisy fields for a specific endpoint
+curl 'http://localhost:8082/api/v1/noise-fields/auto?tenant=default&endpoint=/api/tickets'
+
+# Remove a field
+curl -X DELETE http://localhost:8082/api/v1/noise-fields/updated_at
+```
+
+#### Transparency: NOISE-Tagged Diffs
+
+Noisy diffs are **not silently hidden** — they appear in results with `"diff_type": "NOISE"` so you always know what's being filtered. Only real diffs affect your risk score and alert thresholds.
+
 
 ### 4. AI Service (Python FastAPI + Gemini)
 
@@ -581,9 +650,11 @@ shadow-deploy/
 ├── comparison-engine/              # Spring Boot — joins & compares
 │   └── src/main/java/.../
 │       ├── consumer/TrafficConsumer.java
-│       ├── service/DeterministicComparator.java
+│       ├── service/DeterministicComparator.java  # Comparison + NOISE tagging
+│       ├── service/NoiseDetectionService.java     # Auto noise detection via Redis
 │       ├── service/AIComparisonClient.java
-│       └── service/RiskScoreCalculator.java
+│       ├── service/RiskScoreCalculator.java
+│       └── controller/NoiseFieldController.java  # REST API for noise fields
 ├── api-service/                    # Spring Boot — REST API + JWT auth
 │   └── src/main/java/.../
 │       ├── controller/ComparisonController.java
