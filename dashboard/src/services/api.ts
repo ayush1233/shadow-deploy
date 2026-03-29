@@ -56,7 +56,7 @@ export const getSession = async () => {
 // ── Metrics ──
 export const getMetricsSummary = async () => {
     // Fetch all comparisons and compute client-side (same logic as before, but from API)
-    const { data: result } = await api.get('/comparisons', { params: { limit: 1000 } });
+    const { data: result } = await api.get('/comparisons', { params: { size: 1000 } });
     const all = result.data || [];
     const total = all.length;
 
@@ -156,7 +156,7 @@ export const configureNotifications = (data: any) =>
 // ── Historical Trend ──
 export const getRiskTrend = async (days: number = 7) => {
     // Fetch comparisons and group by day client-side
-    const { data: result } = await api.get('/comparisons', { params: { limit: 1000 } });
+    const { data: result } = await api.get('/comparisons', { params: { size: 1000 } });
     const all = result.data || [];
 
     const grouped: Record<string, { count: number; riskSum: number; passes: number }> = {};
