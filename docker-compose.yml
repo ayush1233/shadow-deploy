@@ -160,6 +160,8 @@ services:
       - INTERNAL_SHARED_SECRET=${INTERNAL_SHARED_SECRET:-shadow-internal-dev-secret}
     networks:
       - shadow-net
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       - ingestion-service
 
@@ -179,6 +181,8 @@ services:
       - INTERNAL_SHARED_SECRET=${INTERNAL_SHARED_SECRET:-shadow-internal-dev-secret}
     networks:
       - shadow-net
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       kafka:
         condition: service_healthy
@@ -206,6 +210,8 @@ services:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
     networks:
       - shadow-net
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       kafka:
         condition: service_healthy
@@ -238,6 +244,8 @@ services:
       - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:3004,http://localhost:3000}
     networks:
       - shadow-net
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       redis:
         condition: service_healthy

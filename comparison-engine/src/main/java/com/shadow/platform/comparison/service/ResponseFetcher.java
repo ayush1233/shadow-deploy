@@ -71,12 +71,13 @@ public class ResponseFetcher {
             HttpResponse<String> response = httpClient.send(reqBuilder.build(),
                     HttpResponse.BodyHandlers.ofString());
 
+            String body = response.body() != null ? response.body() : "";
             log.debug("Fetched {} response [endpoint={}, status={}, bodyLen={}]",
-                    label, endpoint, response.statusCode(), response.body().length());
+                    label, endpoint, response.statusCode(), body.length());
 
-            return new FetchResult(response.body(), response.statusCode());
+            return new FetchResult(body, response.statusCode());
         } catch (Exception e) {
-            log.warn("Failed to fetch {} response [endpoint={}]: {}", label, endpoint, e.getMessage());
+            log.warn("Failed to fetch {} response [endpoint={}]: ", label, endpoint, e);
             return null;
         }
     }
