@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.Date;
 import java.util.Map;
 
@@ -23,7 +24,18 @@ public class JwtTokenProvider {
     public JwtTokenProvider(
             @Value("${shadow.jwt.secret}") String secret,
             @Value("${shadow.jwt.expiration-ms:86400000}") long expirationMs) {
-        this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        // SHA-256 always produces 32 bytes (256 bits), satisfying HMAC-SHA256 minimum
+        byte[] keyBytes;
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            keyBytes = digest.digest(secret.getBytes(StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            // Fallback: pad the secret to 32 bytes
+            byte[] raw = secret.getBytes(StandardCharsets.UTF_8);
+            keyBytes = new byte[32];
+            System.arraycopy(raw, 0, keyBytes, 0, Math.min(raw.length, 32));
+        }
+        this.key = Keys.hmacShaKeyFor(keyBytes);
         this.expirationMs = expirationMs;
     }
 
