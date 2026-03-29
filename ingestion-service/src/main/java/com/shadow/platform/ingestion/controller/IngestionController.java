@@ -158,7 +158,7 @@ public class IngestionController {
             Map<String, String> headers) {
         TrafficEvent event = new TrafficEvent();
         event.setRequestId(requestId != null ? requestId : UUID.randomUUID().toString());
-        event.setTenantId(tenantId != null ? tenantId : "default");
+        event.setTenantId(tenantId != null && !tenantId.isBlank() ? tenantId : "default");
         event.setTrafficType(trafficType);
         event.setResponseBody(body);
         event.setResponseHeaders(headers);

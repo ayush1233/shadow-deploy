@@ -118,6 +118,7 @@ public class ComparisonController {
                 } catch (Exception e) {
                 }
             }
+
             return cb.and(predicates.toArray(new Predicate[0]));
         };
 
@@ -134,6 +135,11 @@ public class ComparisonController {
             map.put("risk_score", entity.getRiskScore());
             map.put("timestamp",
                     entity.getTimestamp() != null ? entity.getTimestamp().toString() : Instant.now().toString());
+            map.put("deterministic_pass", entity.getDeterministicPass());
+            map.put("body_match", entity.getBodyMatch());
+            map.put("prod_response_time_ms", entity.getProdResponseTimeMs());
+            map.put("shadow_response_time_ms", entity.getShadowResponseTimeMs());
+            map.put("latency_delta_ms", entity.getLatencyDeltaMs());
             comparisons.add(map);
         }
 
