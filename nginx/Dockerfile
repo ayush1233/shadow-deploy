@@ -15,4 +15,4 @@ ENV SHADOW_BACKEND_PORT=5002
 ENV MIRROR_PERCENTAGE=100
 
 # At startup: substitute env vars into the template, then start nginx
-CMD ["/bin/sh", "-c", "envsubst '${PROD_BACKEND_HOST} ${PROD_BACKEND_PORT} ${SHADOW_BACKEND_HOST} ${SHADOW_BACKEND_PORT} ${MIRROR_PERCENTAGE}' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf && nginx -g 'daemon off;'"]
+CMD ["/bin/sh", "-c", "envsubst '${PROD_BACKEND_HOST} ${PROD_BACKEND_PORT} ${SHADOW_BACKEND_HOST} ${SHADOW_BACKEND_PORT} ${MIRROR_PERCENTAGE} ${INTERNAL_SHARED_SECRET}' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf && nginx -g 'daemon off;'"]
