@@ -1,388 +1,209 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-    AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
-    XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
-} from 'recharts';
-import { configureProxy, getMetricsSummary, getRiskTrend } from '../services/api';
+import { motion, AnimatePresence } from 'framer-motion';
+import { configureProxy, getMetricsSummary, getRiskTrend, listComparisons } from '../services/api';
 import { exportCsv } from '../utils/exportCsv';
 import { exportPdf } from '../utils/exportPdf';
+import PageHeader from '../components/layout/PageHeader';
+import StatCard from '../components/ui/StatCard';
+import RiskGauge from '../components/ui/RiskGauge';
+import GlassCard from '../components/ui/GlassCard';
+import SeverityBadge from '../components/ui/SeverityBadge';
+import MethodBadge from '../components/ui/MethodBadge';
+import { PageSkeleton } from '../components/ui/SkeletonLoader';
+import TrendChart from '../components/charts/TrendChart';
+import SeverityDonut from '../components/charts/SeverityDonut';
+import LatencyBar from '../components/charts/LatencyBar';
+import { useToast } from '../components/ui/Toast';
 
 export default function OverviewPage() {
     const navigate = useNavigate();
+    const { addToast } = useToast();
     const [isLoaded, setIsLoaded] = useState(false);
     const [metrics, setMetrics] = useState<any>(null);
     const [trendData, setTrendData] = useState<any[]>([]);
-
-    // AI Configurator State
+    const [recentComparisons, setRecentComparisons] = useState<any[]>([]);
     const [configPrompt, setConfigPrompt] = useState('');
     const [configStatus, setConfigStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
     const [configMessage, setConfigMessage] = useState('');
     const [trendRange, setTrendRange] = useState(7);
+    const [showExport, setShowExport] = useState(false);
 
     const handleConfigure = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!configPrompt.trim()) return;
-
         setConfigStatus('loading');
         try {
             const { data } = await configureProxy(configPrompt);
             setConfigStatus('success');
             setConfigMessage(data.message);
             setConfigPrompt('');
+            addToast('success', 'Configuration applied successfully');
         } catch (error: any) {
             setConfigStatus('error');
             setConfigMessage(error.response?.data?.detail || error.message || 'Configuration failed');
+            addToast('error', 'Configuration failed');
         }
     };
 
     useEffect(() => {
-        const fetchMetrics = async () => {
+        const fetchAll = async () => {
             try {
-                const [summaryRes, trendRes] = await Promise.all([
+                const [summaryRes, trendRes, recentRes] = await Promise.all([
                     getMetricsSummary(),
-                    getRiskTrend(trendRange)
+                    getRiskTrend(trendRange),
+                    listComparisons({ size: 5 }),
                 ]);
                 setMetrics(summaryRes.data);
                 setTrendData(trendRes);
+                setRecentComparisons(recentRes.data.data || []);
                 setIsLoaded(true);
             } catch (err: any) {
-                console.error("Failed to fetch metrics", err);
-                setIsLoaded(true); // show empty state instead of infinite loading
+                console.error('Failed to fetch metrics', err);
+                setIsLoaded(true);
             }
         };
-        fetchMetrics();
-    }, [navigate, trendRange]);
+        fetchAll();
+    }, [trendRange]);
 
-    const handleExportCsv = () => {
-        if (!trendData || trendData.length === 0) return;
-        exportCsv(trendData, 'shadow-risk-trend.csv');
-    };
-
-    const handleExportPdf = () => {
-        if (!trendData || trendData.length === 0) return;
-        exportPdf(trendData, '7-Day Risk & Pass Rate Trend', 'shadow-risk-trend.pdf');
-    };
-
-    if (!isLoaded) {
-        return (
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
-                <div style={{ color: 'var(--text-secondary)' }}>Loading live metrics...</div>
-            </div>
-        );
-    }
+    if (!isLoaded) return <PageSkeleton />;
 
     if (!metrics) {
         return (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: 16 }}>
-                <div style={{ color: 'var(--text-secondary)', fontSize: 16 }}>No data available yet</div>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: 16 }}>
+                <div style={{ width: 64, height: 64, borderRadius: 16, background: 'var(--accent-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <svg width="28" height="28" viewBox="0 0 16 16" fill="none"><rect x="1" y="8" width="3" height="7" rx="1" fill="var(--accent)"/><rect x="6" y="5" width="3" height="10" rx="1" fill="var(--accent)" opacity="0.6"/><rect x="11" y="2" width="3" height="13" rx="1" fill="var(--accent)" opacity="0.3"/></svg>
+                </div>
+                <div style={{ fontSize: 16, fontWeight: 600 }}>No data available yet</div>
                 <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Start sending traffic through the proxy to see metrics here.</p>
-            </div>
+            </motion.div>
         );
     }
 
-    const formatNum = (num: number) => num > 1000 ? (num / 1000).toFixed(1) + 'K' : num;
-
     const riskScore = metrics.overview.deployment_risk_score;
-
-    const getRiskColor = (score: number) => {
-        if (score <= 3) return 'var(--accent-green)';
-        if (score <= 6) return 'var(--accent-yellow)';
-        return 'var(--accent-red)';
+    const getRiskVerdict = (s: number) => {
+        if (s <= 3) return { text: 'Safe to Deploy', color: 'var(--green)' };
+        if (s <= 6) return { text: 'Review Recommended', color: 'var(--amber)' };
+        return { text: 'High Risk \u2014 Do Not Deploy', color: 'var(--red)' };
     };
-
-    const getRiskStatus = (score: number) => {
-        if (score <= 3) return { text: 'Safe to Deploy', cls: 'safe' };
-        if (score <= 6) return { text: 'Review Required', cls: 'warning' };
-        return { text: 'Deployment Blocked', cls: 'danger' };
-    };
-
-    const status = getRiskStatus(riskScore);
-
-    // Map Backend Data to Charts
+    const verdict = getRiskVerdict(riskScore);
     const severityData = [
-        { name: 'Low', value: metrics.severity_breakdown.low, color: 'var(--accent-blue)' },
-        { name: 'Medium', value: metrics.severity_breakdown.medium, color: 'var(--accent-yellow)' },
-        { name: 'High', value: metrics.severity_breakdown.high, color: 'var(--accent-orange)' },
-        { name: 'Critical', value: metrics.severity_breakdown.critical, color: 'var(--accent-red)' },
+        { name: 'Low', value: metrics.severity_breakdown.low, color: '#60a5fa' },
+        { name: 'Medium', value: metrics.severity_breakdown.medium, color: '#f59e0b' },
+        { name: 'High', value: metrics.severity_breakdown.high, color: '#fb923c' },
+        { name: 'Critical', value: metrics.severity_breakdown.critical, color: '#ef4444' },
     ];
-
-    const endpointMismatchData = Object.entries(metrics.top_endpoints).map(([endpoint, data]: any) => ({
-        endpoint,
-        mismatches: data.mismatches,
-        total: data.requests
-    })).sort((a, b) => b.mismatches - a.mismatches);
-
-    // Build latency comparison from real comparison data
     const latencyData = Object.entries(metrics.top_endpoints).map(([endpoint, data]: any) => ({
         endpoint: endpoint.length > 20 ? '...' + endpoint.slice(-18) : endpoint,
         prod: Math.round(data.avg_prod_latency || 0),
         shadow: Math.round(data.avg_shadow_latency || 0),
     }));
+    const formatNum = (num: number) => num >= 1000 ? (num / 1000).toFixed(1) + 'K' : num.toString();
+    const handleExportCsv = () => { if (trendData.length > 0) exportCsv(trendData, 'shadow-risk-trend.csv'); };
+    const handleExportPdf = () => { if (trendData.length > 0) exportPdf(trendData, 'Risk Trend Report', 'shadow-risk-trend.pdf'); };
 
     return (
-        <div style={{ opacity: isLoaded ? 1 : 0, transition: 'opacity 0.5s ease', animation: 'fadeIn 0.5s ease' }}>
-            {/* Welcome header */}
-            <div style={{ marginBottom: 28, padding: '20px 24px', background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-sm), var(--shadow-inset-glass)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                        <h2 style={{ fontSize: 22, fontWeight: 500, color: 'var(--text-primary)', letterSpacing: '-0.03em', marginBottom: 4 }}>
-                            Deployment Overview
-                        </h2>
-                        <p style={{ color: 'var(--text-secondary)', fontSize: 13 }}>
-                            Live Shadow API validation metrics — {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-                        </p>
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }}>
+            <PageHeader
+                title="Dashboard"
+                description={`Live shadow API validation metrics \u2014 ${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}`}
+                actions={
+                    <div className="pill-group">
+                        {[{ label: '7d', value: 7 }, { label: '14d', value: 14 }, { label: '30d', value: 30 }].map(opt => (
+                            <button key={opt.value} className={`pill ${trendRange === opt.value ? 'active' : ''}`} onClick={() => setTrendRange(opt.value)}>{opt.label}</button>
+                        ))}
                     </div>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                        <button className="btn btn-secondary" onClick={handleExportCsv}>
-                            <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1v8M3 6l3.5 3.5L10 6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/><path d="M1 10v1.5a.5.5 0 00.5.5h10a.5.5 0 00.5-.5V10" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg>
-                            CSV Report
-                        </button>
-                        <button className="btn btn-secondary" onClick={handleExportPdf}>
-                            <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1v8M3 6l3.5 3.5L10 6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/><path d="M1 10v1.5a.5.5 0 00.5.5h10a.5.5 0 00.5-.5V10" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg>
-                            PDF Report
-                        </button>
-                    </div>
-                </div>
-            </div>
+                }
+            />
 
-            {/* Stats Row */}
+            {/* KPI Strip */}
             <div className="stats-grid">
-                <div className="stat-card blue">
-                    <div className="stat-label">Total Requests</div>
-                    <div className="stat-value blue">{formatNum(metrics.overview.total_requests)}</div>
-                    <div className="stat-change positive">Active traffic mirroring</div>
-                </div>
-
-                <div className="stat-card green">
-                    <div className="stat-label">Comparisons</div>
-                    <div className="stat-value green">{formatNum(metrics.overview.total_comparisons)}</div>
-                    <div className="stat-change positive">{metrics.overview.total_requests > 0 ? ((metrics.overview.total_comparisons / metrics.overview.total_requests) * 100).toFixed(1) : '0.0'}% coverage</div>
-                </div>
-
-                <div className="stat-card yellow">
-                    <div className="stat-label">Mismatches</div>
-                    <div className="stat-value yellow">{formatNum(metrics.overview.total_mismatches)}</div>
-                    <div className="stat-change neutral">Pending review</div>
-                </div>
-
-                <div className="stat-card red">
-                    <div className="stat-label">Critical</div>
-                    <div className="stat-value red">{metrics.severity_breakdown.critical}</div>
-                    <div className="stat-change negative">Requires attention</div>
-                </div>
-
-                <div className="stat-card purple">
-                    <div className="stat-label">Mismatch Rate</div>
-                    <div className="stat-value purple">{metrics.overview.mismatch_rate_percent}%</div>
-                    <div className="stat-change positive">Healthy threshold</div>
-                </div>
-
-                <div className="stat-card cyan">
-                    <div className="stat-label">Avg Latency Δ</div>
-                    <div className="stat-value" style={{ color: 'var(--accent-cyan)' }}>+{metrics.latency.p50_delta_ms}ms</div>
-                    <div className="stat-change positive">Within threshold</div>
-                </div>
+                <StatCard icon={<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 2v12h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><path d="M5 10l3-4 3 2 3-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>} label="Total Requests" value={metrics.overview.total_requests} formatFn={formatNum} trend="Active mirroring" trendType="positive" color="#60a5fa" delay={0} />
+                <StatCard icon={<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.5"/><path d="M5 8l2 2 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>} label="Mismatch Rate" value={Number(metrics.overview.mismatch_rate_percent)} decimals={1} suffix="%" trend={`${metrics.overview.total_mismatches} total`} trendType={Number(metrics.overview.mismatch_rate_percent) > 10 ? 'negative' : 'positive'} color="#f59e0b" delay={0.05} />
+                <StatCard icon={<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1l2 5h5l-4 3 1.5 5L8 11l-4.5 3L5 9 1 6h5l2-5z" stroke="currentColor" strokeWidth="1.3" fill="none"/></svg>} label="Risk Score" value={riskScore} decimals={1} suffix="/10" trend={verdict.text} trendType={riskScore <= 3 ? 'positive' : riskScore <= 6 ? 'neutral' : 'negative'} color={verdict.color} delay={0.1} />
+                <StatCard icon={<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M1 8h3l2-5 3 10 2-5h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>} label="Avg Latency Delta" value={metrics.latency.p50_delta_ms} prefix="+" suffix="ms" trend={`P95: ${metrics.latency.p95_delta_ms}ms`} trendType="neutral" color="#06b6d4" delay={0.15} />
             </div>
 
-            {/* Risk Score + Latency Chart */}
-            <div className="charts-grid">
-                <div className="chart-card">
-                    <div className="card-header">
-                        <span className="card-title">Deployment Risk Score</span>
-                        <span className={`risk-status ${status.cls}`}>{status.text}</span>
-                    </div>
-                    <div className="risk-gauge-container">
-                        <div className="risk-gauge-value" style={{ color: getRiskColor(riskScore) }}>
-                            {riskScore.toFixed(1)}
-                        </div>
-                        <div className="risk-gauge-label">out of 10.0</div>
-                        <div style={{ width: '100%', height: 12, background: 'var(--bg-surface)', borderRadius: 6, marginTop: 16, overflow: 'hidden' }}>
-                            <div style={{
-                                width: `${riskScore * 10}%`,
-                                height: '100%',
-                                background: riskScore <= 3 ? 'var(--gradient-risk-low)' : riskScore <= 6 ? 'var(--gradient-risk-med)' : 'var(--gradient-risk-high)',
-                                borderRadius: 6,
-                                transition: 'width 1s ease'
-                            }} />
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', marginTop: 8 }}>
-                            <span style={{ fontSize: 10, color: 'var(--accent-green)' }}>Safe</span>
-                            <span style={{ fontSize: 10, color: 'var(--accent-yellow)' }}>Review</span>
-                            <span style={{ fontSize: 10, color: 'var(--accent-red)' }}>Blocked</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="chart-card">
-                    <div className="card-header">
-                        <span className="card-title">Latency Comparison</span>
-                    </div>
-                    <ResponsiveContainer width="100%" height={250}>
-                        <AreaChart data={latencyData}>
-                            <defs>
-                                <linearGradient id="gradProd" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#34d399" stopOpacity={0.2} />
-                                    <stop offset="95%" stopColor="#34d399" stopOpacity={0} />
-                                </linearGradient>
-                                <linearGradient id="gradShadow" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#a78bfa" stopOpacity={0.2} />
-                                    <stop offset="95%" stopColor="#a78bfa" stopOpacity={0} />
-                                </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                            <XAxis dataKey="endpoint" stroke="#71717a" fontSize={10} tickLine={false} axisLine={false} />
-                            <YAxis stroke="#71717a" fontSize={10} unit="ms" tickLine={false} axisLine={false} />
-                            <Tooltip
-                                contentStyle={{ background: '#0a0a0a', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, fontSize: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}
-                                itemStyle={{ color: '#ededed' }}
-                            />
-                            <Legend iconType="circle" wrapperStyle={{ fontSize: 12, color: '#a1a1aa' }} />
-                            <Area type="monotone" dataKey="prod" stroke="#34d399" fill="url(#gradProd)"
-                                name="Production" strokeWidth={2} activeDot={{ r: 4, fill: '#34d399', stroke: '#000' }} />
-                            <Area type="monotone" dataKey="shadow" stroke="#a78bfa" fill="url(#gradShadow)"
-                                name="Shadow" strokeWidth={2} activeDot={{ r: 4, fill: '#a78bfa', stroke: '#000' }} />
-                        </AreaChart>
-                    </ResponsiveContainer>
-                </div>
-            </div>
-
-            {/* Severity Distribution + Top Endpoints */}
-            <div className="charts-grid">
-                <div className="chart-card">
-                    <div className="card-header">
-                        <span className="card-title">Severity Distribution</span>
-                    </div>
-                    <ResponsiveContainer width="100%" height={250}>
-                        <PieChart>
-                            <Pie data={severityData} cx="50%" cy="50%" innerRadius={70} outerRadius={90}
-                                dataKey="value" paddingAngle={4} stroke="none">
-                                {severityData.map((entry, index) => (
-                                    <Cell key={index} fill={entry.color} />
-                                ))}
-                            </Pie>
-                            <Tooltip contentStyle={{ background: '#0a0a0a', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, fontSize: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }} itemStyle={{ color: '#ededed' }} />
-                            <Legend iconType="circle" wrapperStyle={{ fontSize: 12, color: '#a1a1aa' }} />
-                        </PieChart>
-                    </ResponsiveContainer>
-                </div>
-
-                <div className="chart-card">
-                    <div className="card-header">
-                        <span className="card-title">Top Mismatched Endpoints</span>
-                    </div>
-                    <ResponsiveContainer width="100%" height={250}>
-                        <BarChart data={endpointMismatchData} layout="vertical">
-                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" horizontal={false} />
-                            <XAxis type="number" stroke="#71717a" fontSize={10} tickLine={false} axisLine={false} />
-                            <YAxis type="category" dataKey="endpoint" stroke="#71717a" fontSize={10} width={120} tickLine={false} axisLine={false} />
-                            <Tooltip contentStyle={{ background: '#0a0a0a', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, fontSize: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }} itemStyle={{ color: '#ededed' }} cursor={{ fill: 'rgba(255,255,255,0.02)' }} />
-                            <Bar dataKey="mismatches" fill="var(--accent-orange)" radius={[0, 4, 4, 0]} barSize={12} />
-                        </BarChart>
-                    </ResponsiveContainer>
-                </div>
-            </div>
-
-            {/* Risk Trend Chart */}
-            {trendData && trendData.length > 0 && (
-                <div className="charts-grid" style={{ gridTemplateColumns: '1fr', marginBottom: 24 }}>
-                    <div className="chart-card glow-border" style={{ position: 'relative' }}>
-                        <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span className="card-title">Risk vs Pass Rate Trend</span>
-                            <div style={{ display: 'flex', gap: 4 }}>
-                                {[
-                                    { label: '24h', value: 1 },
-                                    { label: '7d', value: 7 },
-                                    { label: '30d', value: 30 },
-                                ].map(opt => (
-                                    <button
-                                        key={opt.value}
-                                        className="btn"
-                                        onClick={() => setTrendRange(opt.value)}
-                                        style={{
-                                            padding: '4px 12px',
-                                            fontSize: 12,
-                                            background: trendRange === opt.value ? 'var(--accent-purple)' : 'var(--bg-surface)',
-                                            color: trendRange === opt.value ? '#fff' : 'var(--text-secondary)',
-                                            border: trendRange === opt.value ? 'none' : '1px solid var(--border-color)',
-                                        }}
-                                    >
-                                        {opt.label}
-                                    </button>
-                                ))}
+            {/* Risk Score Hero */}
+            <GlassCard style={{ marginBottom: 24 }} delay={0.2}>
+                <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: 32, alignItems: 'center' }}>
+                    <RiskGauge score={riskScore} size={160} />
+                    <div>
+                        <div style={{ fontSize: 20, fontWeight: 600, color: verdict.color, marginBottom: 8 }}>{verdict.text}</div>
+                        <p style={{ color: 'var(--text-secondary)', fontSize: 14, marginBottom: 16, lineHeight: 1.6 }}>
+                            {riskScore <= 3 ? 'All comparisons are within acceptable thresholds. Your shadow deployment matches production behavior closely.'
+                                : riskScore <= 6 ? 'Some mismatches detected. Review the endpoint analysis for details before promoting.'
+                                : 'Significant behavioral differences detected. Manual review required before deployment.'}
+                        </p>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                            <button className="btn btn-secondary" onClick={() => navigate('/endpoints')}>View Details <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 2l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg></button>
+                            <div style={{ position: 'relative' }}>
+                                <button className="btn btn-secondary" onClick={() => setShowExport(!showExport)}>
+                                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1v7M3 5.5L6 8.5 9 5.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/><path d="M1 9v1.5a.5.5 0 00.5.5h9a.5.5 0 00.5-.5V9" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg> Export
+                                </button>
+                                <AnimatePresence>{showExport && (
+                                    <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} style={{ position: 'absolute', top: '100%', right: 0, marginTop: 4, background: 'var(--bg-raised)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: 4, zIndex: 10, minWidth: 120 }}>
+                                        <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'flex-start', fontSize: 12 }} onClick={() => { handleExportCsv(); setShowExport(false); }}>CSV</button>
+                                        <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'flex-start', fontSize: 12 }} onClick={() => { handleExportPdf(); setShowExport(false); }}>PDF</button>
+                                    </motion.div>
+                                )}</AnimatePresence>
                             </div>
                         </div>
-                        <ResponsiveContainer width="100%" height={280}>
-                            <AreaChart data={trendData}>
-                                <defs>
-                                    <linearGradient id="colorRisk" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.3} />
-                                        <stop offset="95%" stopColor="#f43f5e" stopOpacity={0} />
-                                    </linearGradient>
-                                    <linearGradient id="colorPass" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                                    </linearGradient>
-                                </defs>
-                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                                <XAxis dataKey="date" stroke="#71717a" fontSize={10} tickLine={false} axisLine={false} />
-                                <YAxis yAxisId="left" stroke="#71717a" fontSize={10} tickLine={false} axisLine={false} />
-                                <YAxis yAxisId="right" orientation="right" stroke="#71717a" fontSize={10} unit="%" tickLine={false} axisLine={false} />
-                                <Tooltip contentStyle={{ background: '#0a0a0a', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, fontSize: 12 }} />
-                                <Legend iconType="circle" wrapperStyle={{ fontSize: 12, color: '#a1a1aa' }} />
-                                <Area yAxisId="left" type="monotone" dataKey="avg_risk" stroke="#f43f5e" fillOpacity={1} fill="url(#colorRisk)" name="Avg Risk Score" strokeWidth={2} />
-                                <Area yAxisId="right" type="monotone" dataKey="pass_rate" stroke="#3b82f6" fillOpacity={1} fill="url(#colorPass)" name="Pass Rate" strokeWidth={2} />
-                            </AreaChart>
-                        </ResponsiveContainer>
                     </div>
                 </div>
-            )}
+            </GlassCard>
+
+            {/* Charts */}
+            <div className="charts-grid">
+                <GlassCard delay={0.25}><div className="card-header"><span className="card-title">Risk & Pass Rate Trend</span></div>{trendData.length > 0 ? <TrendChart data={trendData} /> : <div style={{ height: 280, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>No trend data yet</div>}</GlassCard>
+                <GlassCard delay={0.3}><div className="card-header"><span className="card-title">Severity Distribution</span></div><SeverityDonut data={severityData} /></GlassCard>
+            </div>
+
+            {latencyData.length > 0 && (<GlassCard style={{ marginBottom: 24 }} delay={0.35}><div className="card-header"><span className="card-title">Latency Comparison</span></div><LatencyBar data={latencyData} /></GlassCard>)}
 
             {/* AI Configurator */}
-            <div className="chart-card" style={{ marginBottom: 24, border: '1px solid var(--accent-purple)' }}>
+            <GlassCard style={{ marginBottom: 24, borderColor: 'rgba(99,102,241,0.2)' }} delay={0.4}>
                 <div className="card-header">
-                    <span className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        ✨ Dynamic AI Configurator
+                    <span className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1l1.5 3.5L13 6l-3.5 1.5L8 11 6.5 7.5 3 6l3.5-1.5L8 1z" fill="var(--accent)"/><path d="M12 9l.75 1.75L14.5 11.5l-1.75.75L12 14l-.75-1.75L9.5 11.5l1.75-.75L12 9z" fill="var(--accent)" opacity="0.5"/></svg>
+                        AI Configurator
                     </span>
-                    <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                        Powered by Gemini
-                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Powered by Gemini</span>
                 </div>
-                <div style={{ padding: '4px 0' }}>
-                    <p style={{ color: 'var(--text-secondary)', marginBottom: '16px', fontSize: '14px' }}>
-                        Type a natural language instruction to automatically reconfigure routing and mirror traffic:
-                    </p>
-                    <form onSubmit={handleConfigure} style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
-                        <div style={{ flex: 1 }}>
-                            <input
-                                type="text"
-                                value={configPrompt}
-                                onChange={e => setConfigPrompt(e.target.value)}
-                                placeholder="e.g., Mirror 50% of /api/users traffic to shadow v2..."
-                                className="ai-input"
-                                disabled={configStatus === 'loading'}
-                            />
-                            {configMessage && (
-                                <p style={{
-                                    marginTop: '8px',
-                                    fontSize: '13px',
-                                    color: configStatus === 'error' ? 'var(--accent-red)' : 'var(--accent-green)'
-                                }}>
-                                    {configStatus === 'error' ? '❌' : '✅'} {configMessage}
-                                </p>
-                            )}
-                        </div>
-                        <button
-                            type="submit"
-                            disabled={configStatus === 'loading' || !configPrompt.trim()}
-                            className="btn btn-primary btn-glow"
-                            style={{ padding: '10px 20px' }}
-                        >
-                            {configStatus === 'loading' ? 'Applying...' : 'Apply Config'}
-                        </button>
-                    </form>
+                <p style={{ color: 'var(--text-secondary)', marginBottom: 16, fontSize: 13 }}>Describe your proxy configuration in plain English:</p>
+                <form onSubmit={handleConfigure} style={{ display: 'flex', gap: 12 }}>
+                    <div style={{ flex: 1 }}>
+                        <input className="input" type="text" value={configPrompt} onChange={e => setConfigPrompt(e.target.value)} placeholder="e.g., Mirror 50% of /api/users traffic to shadow v2..." disabled={configStatus === 'loading'} />
+                        {configMessage && <p style={{ marginTop: 8, fontSize: 12, color: configStatus === 'error' ? 'var(--red)' : 'var(--green)' }}>{configMessage}</p>}
+                    </div>
+                    <button type="submit" disabled={configStatus === 'loading' || !configPrompt.trim()} className="btn btn-primary" style={{ padding: '10px 20px' }}>{configStatus === 'loading' ? 'Applying...' : 'Apply'}</button>
+                </form>
+                <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+                    {['Route 50% traffic to shadow', 'Add /api/v2 as shadow upstream', 'Enable request logging'].map(chip => (
+                        <button key={chip} className="tag-chip" onClick={() => setConfigPrompt(chip)} style={{ fontSize: 11 }}>{chip}</button>
+                    ))}
                 </div>
-            </div>
-        </div>
+            </GlassCard>
+
+            {/* Recent Comparisons */}
+            {recentComparisons.length > 0 && (
+                <GlassCard delay={0.45}>
+                    <div className="card-header"><span className="card-title">Recent Comparisons</span><button className="btn btn-ghost" onClick={() => navigate('/endpoints')} style={{ fontSize: 12 }}>View All</button></div>
+                    <table className="data-table">
+                        <thead><tr><th>Endpoint</th><th>Status</th><th>Severity</th><th>Time</th></tr></thead>
+                        <tbody>
+                            {recentComparisons.slice(0, 5).map((item: any) => (
+                                <tr key={item.request_id} onClick={() => navigate(`/comparison/${item.request_id}`)}>
+                                    <td style={{ display: 'flex', alignItems: 'center', gap: 8 }}><MethodBadge method={item.method || 'GET'} /><span className="mono" style={{ fontSize: 12 }}>{item.endpoint}</span></td>
+                                    <td>{item.status_match !== false ? <span style={{ color: 'var(--green)' }}>Match</span> : <span style={{ color: 'var(--red)' }}>Mismatch</span>}</td>
+                                    <td><SeverityBadge severity={item.severity || 'none'} /></td>
+                                    <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>{(item.timestamp || item.created_at) ? new Date(item.timestamp || item.created_at).toLocaleTimeString() : 'N/A'}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </GlassCard>
+            )}
+        </motion.div>
     );
 }

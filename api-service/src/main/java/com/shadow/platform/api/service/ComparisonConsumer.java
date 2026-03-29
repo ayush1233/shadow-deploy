@@ -38,12 +38,26 @@ public class ComparisonConsumer {
             entity.setRequestId(requestId);
             entity.setTenantId(getString(result, "tenant_id"));
 
-            // Try to parse timestamp, otherwise it will be left null
+            // Parse timestamp: handles ISO-8601 string, epoch seconds (double), or epoch millis (long)
             try {
-                if (result.get("timestamp") != null) {
-                    entity.setTimestamp(java.time.Instant.parse(getString(result, "timestamp")));
+                Object tsVal = result.get("timestamp");
+                if (tsVal instanceof Number) {
+                    double num = ((Number) tsVal).doubleValue();
+                    if (num > 1e12) {
+                        // Epoch millis
+                        entity.setTimestamp(java.time.Instant.ofEpochMilli(((Number) tsVal).longValue()));
+                    } else {
+                        // Epoch seconds (possibly with fractional part)
+                        long secs = (long) num;
+                        long nanos = (long) ((num - secs) * 1_000_000_000);
+                        entity.setTimestamp(java.time.Instant.ofEpochSecond(secs, nanos));
+                    }
+                } else if (tsVal != null) {
+                    entity.setTimestamp(java.time.Instant.parse(tsVal.toString()));
                 }
             } catch (Exception e) {
+                // Fallback to now so we always have a timestamp
+                entity.setTimestamp(java.time.Instant.now());
             }
 
             entity.setEndpoint(getString(result, "endpoint"));

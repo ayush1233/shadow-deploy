@@ -34,12 +34,14 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             if (tokenProvider.validateToken(token)) {
                 String username = tokenProvider.getUsernameFromToken(token);
                 String tenantId = tokenProvider.getTenantIdFromToken(token);
+                String role = tokenProvider.getRoleFromToken(token);
 
                 var auth = new UsernamePasswordAuthenticationToken(
                         username, null,
                         List.of(new SimpleGrantedAuthority("ROLE_USER")));
                 SecurityContextHolder.getContext().setAuthentication(auth);
                 request.setAttribute("tenant_id", tenantId);
+                request.setAttribute("role", role);
             }
         }
 

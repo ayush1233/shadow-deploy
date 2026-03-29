@@ -71,6 +71,26 @@ services:
     networks:
       - shadow-net
 
+  postgres:
+    image: postgres:16-alpine
+    container_name: shadow-postgres
+    environment:
+      POSTGRES_DB: shadow_deploy
+      POSTGRES_USER: shadow
+      POSTGRES_PASSWORD: shadow_local_dev
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - shadow-net
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U shadow -d shadow_deploy" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   redis:
     image: redis:7.2-alpine
     container_name: shadow-redis
@@ -137,6 +157,7 @@ services:
       - SHADOW_BACKEND_HOST=${SHADOW_BACKEND_HOST:-host.docker.internal}
       - SHADOW_BACKEND_PORT=${SHADOW_BACKEND_PORT:-5002}
       - MIRROR_PERCENTAGE=${MIRROR_PERCENTAGE:-100}
+      - INTERNAL_SHARED_SECRET=${INTERNAL_SHARED_SECRET:-shadow-internal-dev-secret}
     networks:
       - shadow-net
     depends_on:
@@ -155,6 +176,7 @@ services:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - INTERNAL_SHARED_SECRET=${INTERNAL_SHARED_SECRET:-shadow-internal-dev-secret}
     networks:
       - shadow-net
     depends_on:
@@ -176,7 +198,9 @@ services:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - SUPABASE_DB_PASSWORD=${SUPABASE_DB_PASSWORD}
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/shadow_deploy
+      - SPRING_DATASOURCE_USERNAME=shadow
+      - SPRING_DATASOURCE_PASSWORD=shadow_local_dev
       - JAVA_TOOL_OPTIONS=-Djava.net.preferIPv4Stack=true
       - AI_SERVICE_URL=http://ai-service:8000
       - GEMINI_API_KEY=${GEMINI_API_KEY}
@@ -186,6 +210,8 @@ services:
       kafka:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      postgres:
         condition: service_healthy
       ai-service:
         condition: service_started
@@ -203,7 +229,9 @@ services:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - SUPABASE_DB_PASSWORD=${SUPABASE_DB_PASSWORD}
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/shadow_deploy
+      - SPRING_DATASOURCE_USERNAME=shadow
+      - SPRING_DATASOURCE_PASSWORD=shadow_local_dev
       - JAVA_TOOL_OPTIONS=-Djava.net.preferIPv4Stack=true
       # IMPORTANT: Set JWT_SECRET in .env or environment. Must be strong in production.
       - JWT_SECRET=${JWT_SECRET:-shadow-api-jwt-secret-LOCAL-DEV-ONLY}
@@ -212,6 +240,8 @@ services:
       - shadow-net
     depends_on:
       redis:
+        condition: service_healthy
+      postgres:
         condition: service_healthy
 
   ai-service:
@@ -299,6 +329,7 @@ volumes:
   zookeeper-data:
   kafka-data:
   redis-data:
+  postgres-data:
   prometheus-data:
   grafana-data:
   ollama-data:

@@ -2,6 +2,7 @@ package com.shadow.platform.api.controller;
 
 import com.shadow.platform.api.model.ComparisonResultEntity;
 import com.shadow.platform.api.repository.ComparisonRepository;
+import com.shadow.platform.api.security.TenantAccess;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,7 +27,9 @@ public class ComparisonController {
     public ResponseEntity<?> getComparison(@PathVariable String requestId,
             HttpServletRequest request) {
 
-        Optional<ComparisonResultEntity> entityOpt = comparisonRepository.findById(requestId);
+        String tenantId = TenantAccess.requireTenantId(request);
+
+        Optional<ComparisonResultEntity> entityOpt = comparisonRepository.findByRequestIdAndTenantId(requestId, tenantId);
         if (entityOpt.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
@@ -89,10 +92,14 @@ public class ComparisonController {
             @RequestParam(required = false) String endpoint,
             @RequestParam(required = false) String severity,
             @RequestParam(required = false) String from,
-            @RequestParam(required = false) String to) {
+            @RequestParam(required = false) String to,
+            HttpServletRequest request) {
+
+        String tenantId = TenantAccess.requireTenantId(request);
 
         Specification<ComparisonResultEntity> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
+            predicates.add(cb.equal(root.get("tenantId"), tenantId));
             if (endpoint != null && !endpoint.isEmpty()) {
                 predicates.add(cb.like(cb.lower(root.get("endpoint")), "%" + endpoint.toLowerCase() + "%"));
             }

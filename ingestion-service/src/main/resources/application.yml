@@ -34,11 +34,7 @@ shadow:
       prod-traffic: prod-traffic
       shadow-traffic: shadow-traffic
   security:
-    api-keys:
-      - tenant-id: default
-        key: sk-shadow-default-key-change-me
-      - tenant-id: demo
-        key: sk-shadow-demo-key-change-me
+    internal-secret: ${INTERNAL_SHARED_SECRET:shadow-internal-dev-secret}
   rate-limit:
     requests-per-second: 1000
     burst-size: 2000

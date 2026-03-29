@@ -6,6 +6,7 @@ import com.shadow.platform.ingestion.service.KafkaProducerService;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -22,9 +23,12 @@ public class IngestionController {
     private static final Logger log = LoggerFactory.getLogger(IngestionController.class);
 
     private final KafkaProducerService kafkaProducerService;
+    private final StringRedisTemplate redisTemplate;
 
-    public IngestionController(KafkaProducerService kafkaProducerService) {
+    public IngestionController(KafkaProducerService kafkaProducerService,
+                                StringRedisTemplate redisTemplate) {
         this.kafkaProducerService = kafkaProducerService;
+        this.redisTemplate = redisTemplate;
     }
 
     /**
@@ -39,6 +43,7 @@ public class IngestionController {
         enrichEvent(event, tenantIdHeader, "sdk");
 
         kafkaProducerService.publishTrafficEvent(event);
+        recordIngestion(event.getTenantId(), 1);
 
         log.info("Ingested {} event [request_id={}, tenant={}, endpoint={}]",
                 event.getTrafficType(), event.getRequestId(),
@@ -67,6 +72,7 @@ public class IngestionController {
         }
 
         log.info("Ingested batch of {} events [tenant={}]", count, tenantIdHeader);
+        recordIngestion(tenantIdHeader != null ? tenantIdHeader : "default", count);
 
         return ResponseEntity.status(HttpStatus.ACCEPTED)
                 .body(Map.of(
@@ -89,6 +95,7 @@ public class IngestionController {
 
         TrafficEvent event = buildProxyEvent(requestId, tenantId, "production", body, headers);
         kafkaProducerService.publishTrafficEvent(event);
+        recordIngestion(event.getTenantId(), 1);
 
         return ResponseEntity.status(HttpStatus.ACCEPTED)
                 .body(Map.of("status", "accepted", "request_id", event.getRequestId()));
@@ -108,6 +115,7 @@ public class IngestionController {
 
         TrafficEvent event = buildProxyEvent(requestId, tenantId, "shadow", body, headers);
         kafkaProducerService.publishTrafficEvent(event);
+        recordIngestion(event.getTenantId(), 1);
 
         return ResponseEntity.status(HttpStatus.ACCEPTED)
                 .body(Map.of("status", "accepted", "request_id", event.getRequestId()));
@@ -176,5 +184,18 @@ public class IngestionController {
         }
 
         return event;
+    }
+
+    /**
+     * Record ingestion usage event in Redis for metering.
+     * Key: usage:{tenantId}:ingestion — incremented per event.
+     */
+    private void recordIngestion(String tenantId, int count) {
+        try {
+            String key = "usage:" + tenantId + ":ingestion";
+            redisTemplate.opsForValue().increment(key, count);
+        } catch (Exception e) {
+            log.warn("Failed to record ingestion usage for tenant={}: {}", tenantId, e.getMessage());
+        }
     }
 }

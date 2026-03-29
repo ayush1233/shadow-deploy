@@ -60,6 +60,30 @@ public class JwtTokenProvider {
         }
     }
 
+    public String getRoleFromToken(String token) {
+        return parseClaims(token).getPayload().get("role", String.class);
+    }
+
+    public String getRoleFromRequest(jakarta.servlet.http.HttpServletRequest request) {
+        String role = (String) request.getAttribute("role");
+        if (role != null) return role;
+        String token = extractToken(request);
+        return token != null ? getRoleFromToken(token) : null;
+    }
+
+    public String getUsernameFromRequest(jakarta.servlet.http.HttpServletRequest request) {
+        String token = extractToken(request);
+        return token != null ? getUsernameFromToken(token) : null;
+    }
+
+    private String extractToken(jakarta.servlet.http.HttpServletRequest request) {
+        String header = request.getHeader("Authorization");
+        if (header != null && header.startsWith("Bearer ")) {
+            return header.substring(7);
+        }
+        return null;
+    }
+
     private Jws<Claims> parseClaims(String token) {
         return Jwts.parser()
                 .verifyWith(key)

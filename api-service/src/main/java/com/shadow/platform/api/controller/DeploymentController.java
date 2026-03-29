@@ -1,5 +1,6 @@
 package com.shadow.platform.api.controller;
 
+import com.shadow.platform.api.security.TenantAccess;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
@@ -18,11 +19,11 @@ public class DeploymentController {
     @GetMapping("/{id}/report")
     public ResponseEntity<?> getDeploymentReport(@PathVariable String id,
             HttpServletRequest request) {
-        String tenantId = (String) request.getAttribute("tenant_id");
+        String tenantId = TenantAccess.requireTenantId(request);
 
         Map<String, Object> report = new LinkedHashMap<>();
         report.put("deployment_id", id);
-        report.put("tenant_id", tenantId != null ? tenantId : "default");
+        report.put("tenant_id", tenantId);
         report.put("status", "analyzing");
         report.put("risk_score", 3.2);
         report.put("total_requests", 15420);
@@ -46,9 +47,12 @@ public class DeploymentController {
     }
 
     @PostMapping("/{id}/approve")
-    public ResponseEntity<?> approveDeployment(@PathVariable String id) {
+    public ResponseEntity<?> approveDeployment(@PathVariable String id,
+            HttpServletRequest request) {
+        String tenantId = TenantAccess.requireTenantId(request);
         return ResponseEntity.ok(Map.of(
                 "deployment_id", id,
+                "tenant_id", tenantId,
                 "status", "APPROVED",
                 "approved_at", Instant.now().toString(),
                 "message", "Deployment approved for promotion"));
@@ -56,10 +60,13 @@ public class DeploymentController {
 
     @PostMapping("/{id}/reject")
     public ResponseEntity<?> rejectDeployment(@PathVariable String id,
-            @RequestBody(required = false) Map<String, String> body) {
+            @RequestBody(required = false) Map<String, String> body,
+            HttpServletRequest request) {
+        String tenantId = TenantAccess.requireTenantId(request);
         String reason = body != null ? body.getOrDefault("reason", "Manual rejection") : "Manual rejection";
         return ResponseEntity.ok(Map.of(
                 "deployment_id", id,
+                "tenant_id", tenantId,
                 "status", "REJECTED",
                 "rejected_at", Instant.now().toString(),
                 "reason", reason));

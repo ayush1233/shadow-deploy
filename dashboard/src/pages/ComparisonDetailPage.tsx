@@ -5,11 +5,15 @@ import { motion } from 'framer-motion';
 import ReactDiffViewer from 'react-diff-viewer-continued';
 import { exportCsv } from '../utils/exportCsv';
 import { exportPdf } from '../utils/exportPdf';
+import PageHeader from '../components/layout/PageHeader';
+import GlassCard from '../components/ui/GlassCard';
+import SeverityBadge from '../components/ui/SeverityBadge';
+import RiskGauge from '../components/ui/RiskGauge';
+import { PageSkeleton } from '../components/ui/SkeletonLoader';
 
 export default function ComparisonDetailPage() {
     const { requestId } = useParams<{ requestId: string }>();
     const navigate = useNavigate();
-    const [viewMode, setViewMode] = useState<'formatted' | 'raw'>('formatted');
     const [data, setData] = useState<any>(null);
     const [isLoaded, setIsLoaded] = useState(false);
     const [error, setError] = useState('');
@@ -24,371 +28,135 @@ export default function ComparisonDetailPage() {
             setIsLoaded(false);
             try {
                 const response = await getComparison(requestId);
-                if (isMounted) {
-                    setData(response.data);
-                    setIsLoaded(true);
-                }
+                if (isMounted) { setData(response.data); setIsLoaded(true); }
             } catch (err: any) {
-                console.error("Failed to fetch comparison detail", err);
-                if (isMounted) {
-                    setError('Failed to load comparison data. It may not exist.');
-                    setIsLoaded(true);
-                }
+                if (isMounted) { setError('Failed to load comparison data.'); setIsLoaded(true); }
             }
         };
-
         fetchDetail();
         return () => { isMounted = false; };
-    }, [requestId, navigate]);
+    }, [requestId]);
 
-    if (!isLoaded) {
-        return (
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
-                <div style={{ color: 'var(--text-secondary)' }}>Loading comparison...</div>
-            </div>
-        );
-    }
-
+    if (!isLoaded) return <PageSkeleton />;
     if (error || !data) {
         return (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'center', minHeight: '60vh', justifyContent: 'center' }}>
-                <div style={{ color: 'var(--accent-red)' }}>{error || 'Comparison not found'}</div>
-                <button className="btn btn-secondary" onClick={() => navigate('/endpoints')}>
-                    Go Back to Endpoints
-                </button>
-            </div>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'center', minHeight: '60vh', justifyContent: 'center' }}>
+                <div style={{ color: 'var(--red)', fontSize: 14 }}>{error || 'Comparison not found'}</div>
+                <button className="btn btn-secondary" onClick={() => navigate('/endpoints')}>Back to Endpoints</button>
+            </motion.div>
         );
     }
 
     const comp = data.comparison;
-
-    const getSeverityEmoji = (severity: string) => {
-        switch (severity) {
-            case 'none': return '✅';
-            case 'low': return '🟢';
-            case 'medium': return '🟡';
-            case 'high': return '🟠';
-            case 'critical': return '🔴';
-            default: return '⚪';
-        }
-    };
-
     const getActionStyle = (action: string) => {
         switch (action) {
-            case 'SAFE_TO_PROCEED':
-            case 'SAFE_TO_PROMOTE':
-                return { background: 'rgba(16, 185, 129, 0.12)', color: 'var(--accent-green)', border: '1px solid rgba(16, 185, 129, 0.3)' };
-            case 'REVIEW_RECOMMENDED':
-                return { background: 'rgba(245, 158, 11, 0.12)', color: 'var(--accent-yellow)', border: '1px solid rgba(245, 158, 11, 0.3)' };
-            case 'MANUAL_REVIEW_REQUIRED':
-                return { background: 'rgba(249, 115, 22, 0.12)', color: 'var(--accent-orange)', border: '1px solid rgba(249, 115, 22, 0.3)' };
-            case 'BLOCK_DEPLOYMENT':
-                return { background: 'rgba(239, 68, 68, 0.12)', color: 'var(--accent-red)', border: '1px solid rgba(239, 68, 68, 0.3)' };
-            default:
-                return {};
+            case 'SAFE_TO_PROCEED': case 'SAFE_TO_PROMOTE': return { background: 'rgba(34,197,94,0.1)', color: 'var(--green)', border: '1px solid rgba(34,197,94,0.25)' };
+            case 'REVIEW_RECOMMENDED': return { background: 'rgba(245,158,11,0.1)', color: 'var(--amber)', border: '1px solid rgba(245,158,11,0.25)' };
+            case 'MANUAL_REVIEW_REQUIRED': return { background: 'rgba(251,146,60,0.1)', color: 'var(--orange)', border: '1px solid rgba(251,146,60,0.25)' };
+            case 'BLOCK_DEPLOYMENT': return { background: 'rgba(239,68,68,0.1)', color: 'var(--red)', border: '1px solid rgba(239,68,68,0.25)' };
+            default: return {};
         }
     };
 
     let prodBodyRaw = typeof data.production.body === 'string' ? data.production.body : JSON.stringify(data.production.body, null, 2);
     let shadowBodyRaw = typeof data.shadow.body === 'string' ? data.shadow.body : JSON.stringify(data.shadow.body, null, 2);
-
-    try {
-        if (typeof data.production.body === 'string') prodBodyRaw = JSON.stringify(JSON.parse(data.production.body), null, 2);
-        if (typeof data.shadow.body === 'string') shadowBodyRaw = JSON.stringify(JSON.parse(data.shadow.body), null, 2);
-    } catch (e) { }
-
-    // Detect empty/identical bodies (Supabase default '{}') and build synthetic diff from field_diffs
+    try { if (typeof data.production.body === 'string') prodBodyRaw = JSON.stringify(JSON.parse(data.production.body), null, 2); if (typeof data.shadow.body === 'string') shadowBodyRaw = JSON.stringify(JSON.parse(data.shadow.body), null, 2); } catch (e) {}
     const bodiesEmpty = prodBodyRaw.trim() === '{}' && shadowBodyRaw.trim() === '{}';
     const bodiesIdentical = prodBodyRaw === shadowBodyRaw;
     const hasFieldDiffs = comp.field_diffs && comp.field_diffs.length > 0;
-
     if ((bodiesEmpty || bodiesIdentical) && hasFieldDiffs) {
-        // Build synthetic JSON from field_diffs so the diff viewer has something to show
-        const prodObj: Record<string, any> = {};
-        const shadowObj: Record<string, any> = {};
-        comp.field_diffs.forEach((diff: any) => {
-            const key = diff.path || 'unknown';
-            if (diff.diff_type === 'ADDED') {
-                shadowObj[key] = diff.shadow_value ?? '(added)';
-            } else if (diff.diff_type === 'REMOVED') {
-                prodObj[key] = diff.prod_value ?? '(removed)';
-            } else {
-                prodObj[key] = diff.prod_value ?? null;
-                shadowObj[key] = diff.shadow_value ?? null;
-            }
-        });
-        prodBodyRaw = JSON.stringify(prodObj, null, 2);
-        shadowBodyRaw = JSON.stringify(shadowObj, null, 2);
+        const prodObj: Record<string, any> = {}, shadowObj: Record<string, any> = {};
+        comp.field_diffs.forEach((d: any) => { const k = d.path || 'unknown'; if (d.diff_type === 'ADDED') shadowObj[k] = d.shadow_value ?? '(added)'; else if (d.diff_type === 'REMOVED') prodObj[k] = d.prod_value ?? '(removed)'; else { prodObj[k] = d.prod_value; shadowObj[k] = d.shadow_value; } });
+        prodBodyRaw = JSON.stringify(prodObj, null, 2); shadowBodyRaw = JSON.stringify(shadowObj, null, 2);
     }
+    const latencyDiff = comp.latency_delta_ms || 0;
+    const simScore = comp.similarity_score || 1;
+    const handlePdfExport = () => exportPdf([{ 'Request ID': requestId, Endpoint: data.endpoint, Method: data.method, Similarity: `${(simScore * 100).toFixed(1)}%`, 'Risk Score': Number(comp.risk_score).toFixed(1), Severity: comp.severity }], 'Comparison Detail', `comparison-${requestId}.pdf`);
 
     return (
-        <div style={{ animation: 'fade-in 0.3s ease-out' }}>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
             <button className="back-btn" onClick={() => navigate('/endpoints')}>
-                ← Back to Endpoint Analysis
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8 2L4 6l4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                Endpoint Analysis
             </button>
+            <PageHeader title="Comparison Detail" description={`${data.method || 'GET'} ${data.endpoint} \u2014 ${requestId}`} actions={<div style={{ display: 'flex', gap: 8 }}><SeverityBadge severity={comp.severity} size="md" /><button className="btn btn-secondary" onClick={() => exportCsv([comp], `comparison-${requestId}.csv`)}>CSV</button><button className="btn btn-secondary" onClick={handlePdfExport}>PDF</button></div>} />
 
-            <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div>
-                    <h2 style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        {getSeverityEmoji(comp.severity)}
-                        Comparison Detail
-                    </h2>
-                    <p>
-                        <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent-cyan)' }}>{data.endpoint}</span>
-                        {' '}&middot;{' '}
-                        <span style={{ color: 'var(--text-muted)' }}>Request ID: {requestId || data.request_id}</span>
-                    </p>
-                </div>
-                <div style={{ display: 'flex', gap: 12 }}>
-                    <button className="btn" style={{ background: 'var(--bg-surface)' }} onClick={() => exportCsv([comp], `comparison-${requestId}.csv`)}>⬇ CSV</button>
-                    <button className="btn" style={{ background: 'var(--bg-surface)' }} onClick={() => {
-                        const pdfData = [{
-                            'Request ID': requestId || data.request_id,
-                            'Endpoint': data.endpoint,
-                            'Method': data.method,
-                            'Timestamp': data.timestamp,
-                            'Prod Status': data.production.status_code,
-                            'Shadow Status': data.shadow.status_code,
-                            'Status Match': comp.status_match ? 'Yes' : 'No',
-                            'Body Match': comp.body_match ? 'Yes' : 'No',
-                            'Similarity': `${(comp.similarity_score * 100).toFixed(1)}%`,
-                            'Latency Delta': `${comp.latency_delta_ms}ms`,
-                            'Risk Score': Number(comp.risk_score).toFixed(1),
-                            'Severity': comp.severity,
-                            'Recommendation': comp.recommended_action?.replace(/_/g, ' ') || 'N/A',
-                            'AI Summary': comp.explanation?.summary || 'N/A',
-                            'AI Impact': comp.explanation?.impact || 'N/A',
-                        }];
-                        if (comp.field_diffs?.length > 0) {
-                            comp.field_diffs.forEach((diff: any, i: number) => {
-                                pdfData.push({
-                                    'Request ID': `Field Diff #${i + 1}`,
-                                    'Endpoint': diff.path,
-                                    'Method': diff.diff_type,
-                                    'Timestamp': '',
-                                    'Prod Status': diff.prod_value || '',
-                                    'Shadow Status': diff.shadow_value || '',
-                                    'Status Match': '', 'Body Match': '', 'Similarity': '',
-                                    'Latency Delta': '', 'Risk Score': '', 'Severity': '',
-                                    'Recommendation': '', 'AI Summary': '', 'AI Impact': '',
-                                } as any);
-                            });
-                        }
-                        exportPdf(pdfData, 'Comparison Detail Report', `comparison-${requestId}.pdf`);
-                    }}>⬇ PDF</button>
-                </div>
+            {/* Metrics Strip */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
+                <GlassCard delay={0}><div style={{ textAlign: 'center' }}><div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Status Match</div><div style={{ fontSize: 28, color: comp.status_match ? 'var(--green)' : 'var(--red)' }}>{comp.status_match ? '\u2713' : '\u2717'}</div><div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>{data.production.status_code} &rarr; {data.shadow.status_code}</div></div></GlassCard>
+                <GlassCard delay={0.05}><div style={{ textAlign: 'center' }}><div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Body Match</div><div style={{ fontSize: 28, color: comp.body_match ? 'var(--green)' : 'var(--red)' }}>{comp.body_match ? '\u2713' : '\u2717'}</div></div></GlassCard>
+                <GlassCard delay={0.1}><div style={{ textAlign: 'center' }}><div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Similarity</div><div style={{ fontSize: 28, fontWeight: 600, color: simScore > 0.9 ? 'var(--green)' : simScore > 0.7 ? 'var(--amber)' : 'var(--red)' }}>{(simScore * 100).toFixed(0)}%</div></div></GlassCard>
+                <GlassCard delay={0.15}><div style={{ textAlign: 'center' }}><div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Latency Delta</div><div style={{ fontSize: 28, fontWeight: 600, color: latencyDiff > 50 ? 'var(--red)' : latencyDiff > 20 ? 'var(--amber)' : 'var(--cyan)' }}>+{latencyDiff}ms</div></div></GlassCard>
             </div>
 
-            {/* Quick Stats */}
-            <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
-                <div className="stat-card blue">
-                    <div className="stat-label">Status Codes</div>
-                    <div style={{ fontSize: 18, fontWeight: 700 }}>
-                        <span style={{ color: 'var(--accent-green)' }}>{data.production.status_code}</span>
-                        <span style={{ color: 'var(--text-muted)', margin: '0 8px' }}>→</span>
-                        <span style={{ color: comp.status_match ? 'var(--accent-green)' : 'var(--accent-red)' }}>{data.shadow.status_code}</span>
-                    </div>
-                </div>
-
-                <div className={`stat-card ${comp.similarity_score > 0.9 ? 'green' : comp.similarity_score > 0.7 ? 'yellow' : 'red'}`}>
-                    <div className="stat-label">Similarity</div>
-                    <div className="stat-value" style={{ fontSize: 24, color: comp.similarity_score > 0.9 ? 'var(--accent-green)' : comp.similarity_score > 0.7 ? 'var(--accent-yellow)' : 'var(--accent-red)' }}>
-                        {(comp.similarity_score * 100).toFixed(0)}%
-                    </div>
-                </div>
-
-                <div className={`stat-card ${comp.latency_delta_ms > 50 ? 'red' : comp.latency_delta_ms > 20 ? 'yellow' : 'cyan'}`}>
-                    <div className="stat-label">Latency Diff</div>
-                    <div className="stat-value" style={{ fontSize: 24, color: comp.latency_delta_ms > 50 ? 'var(--accent-red)' : comp.latency_delta_ms > 20 ? 'var(--accent-yellow)' : 'var(--accent-cyan)' }}>
-                        +{comp.latency_delta_ms}ms
-                    </div>
-                </div>
-
-                <div className={`stat-card ${comp.risk_score > 6 ? 'red' : comp.risk_score > 3 ? 'orange' : 'green'}`}>
-                    <div className="stat-label">Risk Score</div>
-                    <div className="stat-value" style={{ fontSize: 24, color: comp.risk_score > 6 ? 'var(--accent-red)' : comp.risk_score > 3 ? 'var(--accent-orange)' : 'var(--accent-green)' }}>
-                        {Number(comp.risk_score).toFixed(1)}
-                    </div>
-                </div>
-
-                <div className="stat-card purple" style={getActionStyle(comp.recommended_action)}>
-                    <div className="stat-label" style={{ color: 'inherit', opacity: 0.8 }}>Recommendation</div>
-                    <div style={{ fontSize: 13, fontWeight: 600, marginTop: 8 }}>
-                        {comp.recommended_action?.replace(/_/g, ' ') || 'NONE'}
-                    </div>
-                </div>
+            {/* Risk + Recommendation */}
+            <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: 16, marginBottom: 24 }}>
+                <GlassCard delay={0.2}><RiskGauge score={comp.risk_score || 0} size={140} /></GlassCard>
+                <GlassCard delay={0.25}>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>Recommendation</div>
+                    <div style={{ display: 'inline-flex', padding: '8px 16px', borderRadius: 'var(--radius-md)', fontSize: 14, fontWeight: 600, ...getActionStyle(comp.recommended_action) }}>{comp.recommended_action?.replace(/_/g, ' ') || 'NONE'}</div>
+                    {comp.ai_compared && <div style={{ marginTop: 16, fontSize: 12, color: 'var(--text-muted)' }}>AI compared &middot; Confidence: {comp.explanation?.confidence ? (comp.explanation.confidence * 100).toFixed(0) + '%' : 'N/A'}</div>}
+                </GlassCard>
             </div>
 
-            {/* AI Explanation Panel */}
+            {/* AI Explanation */}
             {comp.explanation && (
-                <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="chart-card gradient-border glow-border ai-panel border-glow"
-                    style={{
-                        marginBottom: 24,
-                        padding: 24,
-                        position: 'relative',
-                        overflow: 'hidden',
-                        background: 'rgba(30, 41, 59, 0.45)',
-                        backdropFilter: 'blur(16px)',
-                        border: '1px solid rgba(255, 255, 255, 0.08)'
-                    }}
-                >
-                    <div style={{ position: 'absolute', top: -20, right: -20, opacity: 0.03, fontSize: 120, pointerEvents: 'none' }}>✨</div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <span style={{ fontSize: 22 }}>🧠</span>
-                            <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: 'var(--text-primary)' }}>
-                                AI Analysis
-                            </h3>
-                        </div>
-                        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                            <span style={{
-                                fontSize: 13,
-                                fontWeight: 600,
-                                background: comp.explanation.impact?.toLowerCase().includes('high') ? 'rgba(239, 68, 68, 0.15)' :
-                                    comp.explanation.impact?.toLowerCase().includes('medium') ? 'rgba(245, 158, 11, 0.15)' :
-                                        'rgba(16, 185, 129, 0.15)',
-                                color: comp.explanation.impact?.toLowerCase().includes('high') ? 'var(--accent-red)' :
-                                    comp.explanation.impact?.toLowerCase().includes('medium') ? 'var(--accent-yellow)' :
-                                        'var(--accent-green)',
-                                padding: '4px 12px',
-                                borderRadius: 16,
-                                border: comp.explanation.impact?.toLowerCase().includes('high') ? '1px solid rgba(239, 68, 68, 0.3)' :
-                                    comp.explanation.impact?.toLowerCase().includes('medium') ? '1px solid rgba(245, 158, 11, 0.3)' :
-                                        '1px solid rgba(16, 185, 129, 0.3)'
-                            }}>
-                                {comp.explanation.impact || 'Unknown Impact'}
-                            </span>
-                            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                                Confidence: {(comp.explanation.confidence * 100).toFixed(0)}%
-                            </span>
-                        </div>
+                <GlassCard style={{ marginBottom: 24, borderColor: 'rgba(99,102,241,0.15)' }} delay={0.3}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+                        <svg width="20" height="20" viewBox="0 0 16 16" fill="none"><path d="M8 1l1.5 3.5L13 6l-3.5 1.5L8 11 6.5 7.5 3 6l3.5-1.5L8 1z" fill="var(--accent)"/></svg>
+                        <h3 style={{ fontSize: 16, fontWeight: 600 }}>AI Analysis</h3>
+                        {comp.explanation.impact && <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 600, padding: '3px 10px', borderRadius: 12, background: comp.explanation.impact.toLowerCase().includes('high') ? 'rgba(239,68,68,0.1)' : 'rgba(34,197,94,0.1)', color: comp.explanation.impact.toLowerCase().includes('high') ? 'var(--red)' : 'var(--green)' }}>{comp.explanation.impact}</span>}
                     </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                        <div>
-                            <h4 style={{ margin: '0 0 6px 0', fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>Summary</h4>
-                            <p style={{ margin: 0, color: 'var(--text-primary)', fontSize: 16, fontWeight: 500 }}>{comp.explanation.summary}</p>
-                        </div>
-                        <div>
-                            <h4 style={{ margin: '0 0 6px 0', fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>Details</h4>
-                            <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: 14, lineHeight: 1.6 }}>{comp.explanation.details}</p>
-                        </div>
-                    </div>
-                </motion.div>
+                    {comp.explanation.summary && <><div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Summary</div><p style={{ fontSize: 15, fontWeight: 500, lineHeight: 1.5, marginBottom: 16 }}>{comp.explanation.summary}</p></>}
+                    {comp.explanation.details && <><div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Details</div><p style={{ color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.6 }}>{comp.explanation.details}</p></>}
+                </GlassCard>
             )}
 
-            {/* Expandable Diff Viewer Toggle */}
+            {/* Response Comparison Side-by-Side */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 16, marginBottom: 24 }}>
+                <GlassCard delay={0.35}>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--green)' }} /> Production (v1)</div>
+                    <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}><span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, fontFamily: 'var(--font-mono)', background: 'rgba(34,197,94,0.12)', color: 'var(--green)' }}>{data.production.status_code}</span><span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{data.production.response_time_ms || '?'}ms</span></div>
+                    <pre style={{ background: 'rgba(0,0,0,0.3)', padding: 16, borderRadius: 'var(--radius-md)', fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)', overflow: 'auto', maxHeight: 300, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{prodBodyRaw}</pre>
+                </GlassCard>
+                <div style={{ display: 'flex', alignItems: 'center' }}><div style={{ padding: '6px 10px', background: latencyDiff > 0 ? 'rgba(239,68,68,0.1)' : 'rgba(34,197,94,0.1)', borderRadius: 'var(--radius-md)', fontSize: 11, fontWeight: 600, color: latencyDiff > 0 ? 'var(--red)' : 'var(--green)', whiteSpace: 'nowrap' }}>{latencyDiff > 0 ? '+' : ''}{latencyDiff}ms</div></div>
+                <GlassCard delay={0.35}>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)' }} /> Shadow (v2)</div>
+                    <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}><span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, fontFamily: 'var(--font-mono)', background: 'rgba(99,102,241,0.12)', color: 'var(--accent)' }}>{data.shadow.status_code}</span><span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{data.shadow.response_time_ms || '?'}ms</span></div>
+                    <pre style={{ background: 'rgba(0,0,0,0.3)', padding: 16, borderRadius: 'var(--radius-md)', fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)', overflow: 'auto', maxHeight: 300, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{shadowBodyRaw}</pre>
+                </GlassCard>
+            </div>
+
+            {/* Diff Viewer Toggle */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <h3 style={{ margin: 0, fontSize: 16, color: 'var(--text-primary)' }}>Raw Payloads</h3>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    {isDiffExpanded && (
-                        <>
-                            <button
-                                className="btn btn-secondary"
-                                onClick={() => setSplitView(!splitView)}
-                                style={{ background: splitView ? 'var(--accent-purple)' : 'var(--bg-card)', border: '1px solid var(--border-color)', fontSize: 12, padding: '6px 12px', color: splitView ? '#fff' : 'var(--text-secondary)' }}
-                            >
-                                {splitView ? 'Side-by-Side' : 'Unified'}
-                            </button>
-                            <button
-                                className="btn btn-secondary"
-                                onClick={() => setShowDiffOnly(!showDiffOnly)}
-                                style={{ background: showDiffOnly ? 'var(--accent-purple)' : 'var(--bg-card)', border: '1px solid var(--border-color)', fontSize: 12, padding: '6px 12px', color: showDiffOnly ? '#fff' : 'var(--text-secondary)' }}
-                            >
-                                {showDiffOnly ? 'Changes Only' : 'Full Content'}
-                            </button>
-                        </>
-                    )}
-                    <button
-                        className="btn btn-secondary"
-                        onClick={() => setIsDiffExpanded(!isDiffExpanded)}
-                        style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', display: 'flex', gap: 8, alignItems: 'center' }}
-                    >
-                        {isDiffExpanded ? 'Hide Full Diff' : 'View Full Diff'}
-                        <motion.div animate={{ rotate: isDiffExpanded ? 180 : 0 }}>▼</motion.div>
-                    </button>
+                <h3 style={{ fontSize: 14, fontWeight: 600 }}>JSON Diff</h3>
+                <div style={{ display: 'flex', gap: 8 }}>
+                    {isDiffExpanded && <><button className={`pill ${splitView ? 'active' : ''}`} onClick={() => setSplitView(!splitView)}>{splitView ? 'Side-by-Side' : 'Unified'}</button><button className={`pill ${showDiffOnly ? 'active' : ''}`} onClick={() => setShowDiffOnly(!showDiffOnly)}>{showDiffOnly ? 'Changes Only' : 'Full'}</button></>}
+                    <button className="btn btn-secondary" onClick={() => setIsDiffExpanded(!isDiffExpanded)} style={{ fontSize: 12 }}>{isDiffExpanded ? 'Hide Diff' : 'Show Full Diff'} <motion.span animate={{ rotate: isDiffExpanded ? 180 : 0 }} style={{ display: 'inline-block', marginLeft: 4 }}>&#9660;</motion.span></button>
                 </div>
             </div>
 
             {isDiffExpanded && (
-                <div>
-                    {(bodiesEmpty || bodiesIdentical) && hasFieldDiffs && (
-                        <div style={{ padding: '8px 16px', marginTop: 16, background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.3)', borderRadius: 8, color: 'var(--accent-yellow)', fontSize: 13 }}>
-                            Response bodies not stored — showing reconstructed diff from field-level differences.
-                        </div>
-                    )}
-                    <div style={{ padding: 16, background: 'rgba(30, 41, 59, 0.45)', borderRadius: 8, marginTop: 16, border: '1px solid var(--border-color)', backdropFilter: 'blur(16px)' }}>
-                        <ReactDiffViewer
-                            oldValue={prodBodyRaw}
-                            newValue={shadowBodyRaw}
-                            splitView={splitView}
-                            leftTitle="Production (v1)"
-                            rightTitle="Shadow (v2 candidate)"
-                            useDarkTheme={true}
-                            showDiffOnly={false}
-                            extraLinesSurroundingDiff={showDiffOnly ? 3 : undefined}
-                            styles={{
-                                variables: {
-                                    dark: {
-                                        diffViewerBackground: 'transparent',
-                                        diffViewerColor: 'var(--text-primary)',
-                                        addedBackground: 'rgba(16, 185, 129, 0.15)',
-                                        addedColor: '#fff',
-                                        removedBackground: 'rgba(239, 68, 68, 0.15)',
-                                        removedColor: '#fff',
-                                        wordAddedBackground: 'rgba(16, 185, 129, 0.4)',
-                                        wordRemovedBackground: 'rgba(239, 68, 68, 0.4)',
-                                        addedGutterBackground: 'rgba(16, 185, 129, 0.05)',
-                                        removedGutterBackground: 'rgba(239, 68, 68, 0.05)',
-                                        gutterBackground: 'transparent',
-                                        gutterBackgroundDark: 'transparent',
-                                        emptyLineBackground: 'transparent',
-                                        diffViewerTitleBackground: 'rgba(0,0,0,0.2)',
-                                        diffViewerTitleColor: 'var(--text-secondary)',
-                                        diffViewerTitleBorderColor: 'var(--border-color)'
-                                    }
-                                }
-                            }}
-                        />
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                    {(bodiesEmpty || bodiesIdentical) && hasFieldDiffs && <div style={{ padding: '8px 16px', marginBottom: 12, background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 'var(--radius-md)', color: 'var(--amber)', fontSize: 12 }}>Response bodies not stored &mdash; showing reconstructed diff.</div>}
+                    <div style={{ borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border)' }}>
+                        <ReactDiffViewer oldValue={prodBodyRaw} newValue={shadowBodyRaw} splitView={splitView} leftTitle="Production (v1)" rightTitle="Shadow (v2)" useDarkTheme={true} showDiffOnly={false} extraLinesSurroundingDiff={showDiffOnly ? 3 : undefined} styles={{ variables: { dark: { diffViewerBackground: '#0c0c0f', diffViewerColor: '#f4f4f5', addedBackground: 'rgba(34,197,94,0.12)', addedColor: '#fff', removedBackground: 'rgba(239,68,68,0.12)', removedColor: '#fff', wordAddedBackground: 'rgba(34,197,94,0.35)', wordRemovedBackground: 'rgba(239,68,68,0.35)', addedGutterBackground: 'rgba(34,197,94,0.05)', removedGutterBackground: 'rgba(239,68,68,0.05)', gutterBackground: '#09090b', gutterBackgroundDark: '#09090b', emptyLineBackground: 'transparent', diffViewerTitleBackground: '#111116', diffViewerTitleColor: '#a1a1aa', diffViewerTitleBorderColor: 'rgba(255,255,255,0.06)' } } }} />
                     </div>
-
-                        {/* Field Level Diffs Summary */}
-                        {comp.field_diffs && comp.field_diffs.length > 0 && (
-                            <div className="chart-card" style={{ marginTop: 24 }}>
-                                <div className="card-header"><span className="card-title">Structured Field Differences</span></div>
-                                <table className="data-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Path</th>
-                                            <th>Type</th>
-                                            <th>Production Value</th>
-                                            <th>Shadow Value</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {comp.field_diffs.map((diff: any, idx: number) => (
-                                            <tr key={idx}>
-                                                <td style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--text-primary)' }}>{diff.path}</td>
-                                                <td>
-                                                    <span className={`diff-badge diff-${diff.diff_type === 'ADDED' ? 'success' : diff.diff_type === 'REMOVED' ? 'danger' : 'warning'}`}>
-                                                        {diff.diff_type}
-                                                    </span>
-                                                </td>
-                                                <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-secondary)' }}>{String(diff.prod_value)}</td>
-                                                <td style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-secondary)' }}>{String(diff.shadow_value)}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
-
-                </div>
+                    {hasFieldDiffs && (
+                        <GlassCard style={{ marginTop: 16 }}>
+                            <div className="card-header"><span className="card-title">Field Differences</span></div>
+                            <table className="data-table"><thead><tr><th>Path</th><th>Type</th><th>Production</th><th>Shadow</th></tr></thead><tbody>
+                                {comp.field_diffs.map((diff: any, idx: number) => (<tr key={idx}><td className="mono" style={{ fontSize: 12 }}>{diff.path}</td><td><span className={`diff-badge diff-${diff.diff_type === 'ADDED' ? 'success' : diff.diff_type === 'REMOVED' ? 'danger' : 'warning'}`}>{diff.diff_type}</span></td><td className="mono" style={{ fontSize: 11, color: 'var(--text-muted)' }}>{String(diff.prod_value)}</td><td className="mono" style={{ fontSize: 11, color: 'var(--text-muted)' }}>{String(diff.shadow_value)}</td></tr>))}
+                            </tbody></table>
+                        </GlassCard>
+                    )}
+                </motion.div>
             )}
-        </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 32, paddingTop: 20, borderTop: '1px solid var(--border)' }}>
+                <button className="btn btn-secondary" onClick={() => navigate('/endpoints')}><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8 2L4 6l4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> Back to Analysis</button>
+                <div style={{ display: 'flex', gap: 8 }}><button className="btn btn-secondary" onClick={handlePdfExport}>Export PDF</button><button className="btn btn-outline" disabled style={{ opacity: 0.5 }}>Mark as Reviewed</button></div>
+            </div>
+        </motion.div>
     );
 }

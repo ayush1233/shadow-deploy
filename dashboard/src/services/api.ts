@@ -1,75 +1,98 @@
-import { supabase } from './supabase';
+import axios from 'axios';
+
+// ── Axios instance with JWT token injection ──
+const api = axios.create({ baseURL: '/api/v1' });
+
+api.interceptors.request.use((config) => {
+    const token = localStorage.getItem('shadow_token');
+    if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+});
+
+api.interceptors.response.use(
+    (res) => res,
+    (err) => {
+        if (err.response?.status === 401 || err.response?.status === 403) {
+            localStorage.removeItem('shadow_token');
+            localStorage.removeItem('shadow_user');
+            window.location.href = '/login';
+        }
+        return Promise.reject(err);
+    }
+);
 
 // ── Auth ──
-export const login = async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-    });
-    if (error) throw error;
-    return { data: { token: data.session?.access_token, user: data.user } };
+export const login = async (username: string, password: string) => {
+    const { data } = await api.post('/auth/login', { username, password });
+    localStorage.setItem('shadow_token', data.token);
+    localStorage.setItem('shadow_user', JSON.stringify({
+        username: data.username,
+        role: data.role,
+        tenant_id: data.tenant_id,
+    }));
+    return { data };
 };
 
-export const signUp = async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-    });
-    if (error) throw error;
-    return data;
+export const signUp = async (_email: string, _password: string) => {
+    throw new Error('Sign up is not available. Use the admin credentials to login.');
 };
 
 export const signOut = async () => {
-    await supabase.auth.signOut();
+    localStorage.removeItem('shadow_token');
+    localStorage.removeItem('shadow_user');
 };
 
 export const getSession = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    return session;
+    const token = localStorage.getItem('shadow_token');
+    const user = localStorage.getItem('shadow_user');
+    if (token && user) {
+        return { access_token: token, user: JSON.parse(user) };
+    }
+    return null;
 };
 
-// ── Metrics (computed client-side from Supabase for real-time dashboard) ──
-// Note: Backend also exposes GET /api/v1/metrics/summary for external consumers.
+// ── Metrics ──
 export const getMetricsSummary = async () => {
-    const { data: comparisons, error } = await supabase
-        .from('comparisons')
-        .select('*')
-        .order('timestamp', { ascending: false });
-
-    if (error) throw error;
-
-    const all = comparisons || [];
+    // Fetch all comparisons and compute client-side (same logic as before, but from API)
+    const { data: result } = await api.get('/comparisons', { params: { limit: 1000 } });
+    const all = result.data || [];
     const total = all.length;
-    const mismatches = all.filter(c => !c.body_match).length;
+
+    // Count mismatches (use deterministic_pass if available, else body_match)
+    const mismatches = all.filter((c: any) => c.deterministic_pass === false || c.body_match === false).length;
     const mismatchRate = total > 0 ? ((mismatches / total) * 100).toFixed(1) : '0.0';
 
     // Severity breakdown
-    const severity = { none: 0, low: 0, medium: 0, high: 0, critical: 0 };
-    all.forEach(c => { severity[c.severity as keyof typeof severity] = (severity[c.severity as keyof typeof severity] || 0) + 1; });
-
-    // Top endpoints by mismatch count + latency
-    const endpointMap: Record<string, { requests: number; mismatches: number; avg_prod_latency: number; avg_shadow_latency: number; _prodSum: number; _shadowSum: number }> = {};
-    all.forEach(c => {
-        if (!endpointMap[c.endpoint]) endpointMap[c.endpoint] = { requests: 0, mismatches: 0, avg_prod_latency: 0, avg_shadow_latency: 0, _prodSum: 0, _shadowSum: 0 };
-        endpointMap[c.endpoint].requests++;
-        endpointMap[c.endpoint]._prodSum += c.prod_response_time_ms || 0;
-        endpointMap[c.endpoint]._shadowSum += c.shadow_response_time_ms || 0;
-        if (!c.body_match) endpointMap[c.endpoint].mismatches++;
+    const severity: Record<string, number> = { none: 0, low: 0, medium: 0, high: 0, critical: 0 };
+    all.forEach((c: any) => {
+        const sev = (c.severity || 'none').toLowerCase();
+        if (sev in severity) severity[sev]++;
     });
-    // Compute averages
+
+    // Top endpoints
+    const endpointMap: Record<string, { requests: number; mismatches: number; avg_prod_latency: number; avg_shadow_latency: number; _prodSum: number; _shadowSum: number }> = {};
+    all.forEach((c: any) => {
+        const ep = c.endpoint || 'unknown';
+        if (!endpointMap[ep]) endpointMap[ep] = { requests: 0, mismatches: 0, avg_prod_latency: 0, avg_shadow_latency: 0, _prodSum: 0, _shadowSum: 0 };
+        endpointMap[ep].requests++;
+        endpointMap[ep]._prodSum += c.prod_response_time_ms || 0;
+        endpointMap[ep]._shadowSum += c.shadow_response_time_ms || 0;
+        if (c.deterministic_pass === false || c.body_match === false) endpointMap[ep].mismatches++;
+    });
     Object.values(endpointMap).forEach(ep => {
         ep.avg_prod_latency = ep.requests > 0 ? ep._prodSum / ep.requests : 0;
         ep.avg_shadow_latency = ep.requests > 0 ? ep._shadowSum / ep.requests : 0;
     });
 
-    // Latency metrics
-    const deltas = all.map(c => c.latency_delta_ms).sort((a, b) => a - b);
+    // Latency
+    const deltas = all.map((c: any) => c.latency_delta_ms || 0).sort((a: number, b: number) => a - b);
     const p50 = deltas.length > 0 ? deltas[Math.floor(deltas.length * 0.5)] : 0;
     const p95 = deltas.length > 0 ? deltas[Math.floor(deltas.length * 0.95)] : 0;
     const p99 = deltas.length > 0 ? deltas[Math.floor(deltas.length * 0.99)] : 0;
 
-    // Risk score: average of all risk scores
-    const avgRisk = total > 0 ? all.reduce((sum, c) => sum + Number(c.risk_score), 0) / total : 0;
+    const avgRisk = total > 0 ? all.reduce((sum: number, c: any) => sum + Number(c.risk_score || 0), 0) / total : 0;
 
     return {
         data: {
@@ -99,101 +122,25 @@ export const listComparisons = async (params: {
     severity?: string;
     timeRange?: string;
 }) => {
-    let query = supabase
-        .from('comparisons')
-        .select('*', { count: 'exact' })
-        .order('timestamp', { ascending: false });
-
-    if (params.endpoint) {
-        query = query.ilike('endpoint', `%${params.endpoint}%`);
-    }
-    if (params.severity && params.severity !== 'all') {
-        query = query.eq('severity', params.severity);
-    }
-    if (params.timeRange) {
-        const now = new Date();
-        const rangeMap: Record<string, number> = { '15m': 15, '1h': 60, '6h': 360, '24h': 1440, '7d': 10080 };
-        const minutes = rangeMap[params.timeRange] || 60;
-        const since = new Date(now.getTime() - minutes * 60 * 1000);
-        query = query.gte('timestamp', since.toISOString());
-    }
-
-    const size = params.size || 20;
-    const page = params.page || 0;
-    query = query.range(page * size, (page + 1) * size - 1);
-
-    const { data, error, count } = await query;
-    if (error) throw error;
-
-    return {
-        data: {
-            data: data || [],
-            page,
-            size,
-            total: count || 0,
-            total_pages: Math.ceil((count || 0) / size),
+    const { data } = await api.get('/comparisons', {
+        params: {
+            page: params.page || 0,
+            size: params.size || 20,
+            endpoint: params.endpoint || undefined,
+            severity: params.severity && params.severity !== 'all' ? params.severity : undefined,
+            timeRange: params.timeRange || undefined,
         },
-    };
+    });
+    return { data };
 };
 
 export const getComparison = async (requestId: string) => {
-    const { data, error } = await supabase
-        .from('comparisons')
-        .select('*')
-        .eq('request_id', requestId)
-        .single();
-
-    if (error) throw error;
-
-    // Transform to match the expected format from the old API
-    return {
-        data: {
-            request_id: data.request_id,
-            tenant_id: data.tenant_id,
-            timestamp: data.timestamp || data.created_at,
-            endpoint: data.endpoint,
-            method: data.method,
-            production: {
-                status_code: data.prod_status_code,
-                response_time_ms: data.prod_response_time_ms,
-                body: typeof data.prod_body === 'string' ? data.prod_body : JSON.stringify(data.prod_body, null, 2),
-            },
-            shadow: {
-                status_code: data.shadow_status_code,
-                response_time_ms: data.shadow_response_time_ms,
-                body: typeof data.shadow_body === 'string' ? data.shadow_body : JSON.stringify(data.shadow_body, null, 2),
-            },
-            comparison: {
-                status_match: data.status_match,
-                body_match: data.body_match,
-                structure_match: data.structure_match,
-                latency_delta_ms: data.latency_delta_ms,
-                similarity_score: Number(data.similarity_score),
-                risk_score: Number(data.risk_score),
-                severity: data.severity,
-                deterministic_pass: data.deterministic_pass,
-                ai_compared: data.ai_compared,
-                ai_explanation: data.ai_explanation,
-                recommended_action: data.recommended_action,
-                field_diffs: data.field_diffs || [],
-                explanation: data.explanation || (data.explanation_summary ? {
-                    summary: data.explanation_summary,
-                    details: data.explanation_details || data.explanation_summary,
-                    impact: data.explanation_impact || data.severity || 'low',
-                    confidence: data.explanation_confidence || data.similarity_score || 0.5,
-                } : data.ai_explanation ? {
-                    summary: data.ai_explanation,
-                    details: data.ai_explanation,
-                    impact: data.severity || 'low',
-                    confidence: data.similarity_score || 0.5,
-                } : null),
-            },
-        },
-    };
+    const { data } = await api.get(`/comparisons/${requestId}`);
+    // The API service already returns the structured format
+    return { data };
 };
 
-// ── AI Configurator (still goes through the local proxy) ──
-import axios from 'axios';
+// ── AI Configurator ──
 export const configureProxy = (instruction: string) =>
     axios.post('/ai-api/configure-proxy', { instruction });
 
@@ -208,50 +155,45 @@ export const configureNotifications = (data: any) =>
 
 // ── Historical Trend ──
 export const getRiskTrend = async (days: number = 7) => {
-    const since = new Date();
-    since.setDate(since.getDate() - days);
+    // Fetch comparisons and group by day client-side
+    const { data: result } = await api.get('/comparisons', { params: { limit: 1000 } });
+    const all = result.data || [];
 
-    // Select specific needed fields
-    const { data, error } = await supabase
-        .from('comparisons')
-        .select('timestamp, risk_score, severity, deterministic_pass')
-        .gte('timestamp', since.toISOString())
-        .order('timestamp', { ascending: true });
-
-    if (error) throw error;
-
-    // Group by day for simple stats
-    const grouped: Record<string, { count: number, riskSum: number, passes: number }> = {};
-    (data || []).forEach(row => {
-        const date = row.timestamp.substring(0, 10);
+    const grouped: Record<string, { count: number; riskSum: number; passes: number }> = {};
+    all.forEach((row: any) => {
+        const ts = row.timestamp || row.created_at;
+        if (!ts) return;
+        const date = ts.substring(0, 10);
         if (!grouped[date]) grouped[date] = { count: 0, riskSum: 0, passes: 0 };
         grouped[date].count++;
         grouped[date].riskSum += Number(row.risk_score || 0);
         if (row.deterministic_pass) grouped[date].passes++;
     });
 
-    return Object.entries(grouped).map(([date, stats]: any) => ({
+    return Object.entries(grouped).map(([date, stats]) => ({
         date,
         avg_risk: (stats.riskSum / stats.count).toFixed(2),
         count: stats.count,
-        pass_rate: ((stats.passes / stats.count) * 100).toFixed(1)
+        pass_rate: ((stats.passes / stats.count) * 100).toFixed(1),
     }));
 };
 
-// ── Endpoint Tags ──
+// ── Endpoint Tags (stored in localStorage since we don't have Supabase) ──
 export const getEndpointTags = async () => {
-    const { data, error } = await supabase.from('endpoint_tags').select('*');
-    if (error && error.code !== '42P01') throw error; // ignore if table doesn't exist yet
-    return data || [];
+    const stored = localStorage.getItem('shadow_endpoint_tags');
+    return stored ? JSON.parse(stored) : [];
 };
 
 export const createEndpointTag = async (pattern: string, tag: string, color: string) => {
-    const { data, error } = await supabase.from('endpoint_tags').insert([{ endpoint_pattern: pattern, tag, color }]);
-    if (error) throw error;
-    return data;
+    const tags = await getEndpointTags();
+    const newTag = { id: crypto.randomUUID(), endpoint_pattern: pattern, tag, color };
+    tags.push(newTag);
+    localStorage.setItem('shadow_endpoint_tags', JSON.stringify(tags));
+    return newTag;
 };
 
 export const deleteEndpointTag = async (id: string) => {
-    const { error } = await supabase.from('endpoint_tags').delete().eq('id', id);
-    if (error) throw error;
+    const tags = await getEndpointTags();
+    const filtered = tags.filter((t: any) => t.id !== id);
+    localStorage.setItem('shadow_endpoint_tags', JSON.stringify(filtered));
 };

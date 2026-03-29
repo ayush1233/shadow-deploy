@@ -7,7 +7,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -15,37 +15,35 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * Validates API keys by looking up SHA-256(key) in Redis.
+ * Redis key pattern: apikey:{sha256hash} -> {tenantId}:{scopes}
+ *
+ * For internal NGINX traffic (X-Traffic-Type header), validates
+ * a shared secret to prevent external bypass.
+ */
 @Component
 public class ApiKeyAuthFilter extends OncePerRequestFilter {
 
     private static final Logger log = LoggerFactory.getLogger(ApiKeyAuthFilter.class);
     private static final String API_KEY_HEADER = "X-API-Key";
     private static final String TENANT_HEADER = "X-Tenant-ID";
+    private static final String REDIS_KEY_PREFIX = "apikey:";
 
-    private final Map<String, String> apiKeyToTenant = new ConcurrentHashMap<>();
+    private final StringRedisTemplate redisTemplate;
+    private final String internalSecret;
 
     public ApiKeyAuthFilter(
-        @Value("#{${shadow.security.api-keys:{}}}") List<Map<String, String>> apiKeys
+            StringRedisTemplate redisTemplate,
+            @Value("${shadow.security.internal-secret:shadow-internal-dev-secret}") String internalSecret
     ) {
-        if (apiKeys != null) {
-            for (Map<String, String> entry : apiKeys) {
-                String key = entry.get("key");
-                String tenantId = entry.get("tenant-id");
-                if (key != null && tenantId != null) {
-                    apiKeyToTenant.put(key, tenantId);
-                }
-            }
-        }
-        // Dev-only default keys — configure real keys via shadow.security.api-keys in production
-        String profile = System.getenv("SPRING_PROFILES_ACTIVE");
-        if (profile == null || !profile.contains("prod")) {
-            apiKeyToTenant.putIfAbsent("sk-shadow-default-key-change-me", "default");
-            apiKeyToTenant.putIfAbsent("sk-shadow-demo-key-change-me", "demo");
-        }
+        this.redisTemplate = redisTemplate;
+        this.internalSecret = internalSecret;
     }
 
     @Override
@@ -55,12 +53,24 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
         String apiKey = request.getHeader(API_KEY_HEADER);
 
         if (apiKey == null || apiKey.isBlank()) {
-            // Check for internal traffic (from NGINX proxy)
-            String internalHeader = request.getHeader("X-Traffic-Type");
-            if (internalHeader != null) {
+            // Check for internal traffic from NGINX proxy
+            String trafficType = request.getHeader("X-Traffic-Type");
+            if (trafficType != null) {
+                // Validate shared secret to prevent external bypass
+                String secret = request.getHeader("X-Internal-Secret");
+                if (secret == null || !secret.equals(internalSecret)) {
+                    log.warn("Internal traffic request with invalid/missing shared secret from IP: {}",
+                            request.getRemoteAddr());
+                    response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                    response.setContentType("application/json");
+                    response.getWriter().write("{\"error\":\"Invalid internal secret\"}");
+                    return;
+                }
+
                 String tenantId = request.getHeader(TENANT_HEADER);
                 if (tenantId == null || tenantId.isBlank()) tenantId = "default";
                 setAuthentication(tenantId);
+                request.setAttribute("tenant_id", tenantId);
                 filterChain.doFilter(request, response);
                 return;
             }
@@ -71,8 +81,12 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
             return;
         }
 
-        String tenantId = apiKeyToTenant.get(apiKey);
-        if (tenantId == null) {
+        // Validate API key via Redis
+        String keyHash = sha256(apiKey);
+        String redisKey = REDIS_KEY_PREFIX + keyHash;
+        String value = redisTemplate.opsForValue().get(redisKey);
+
+        if (value == null) {
             log.warn("Invalid API key attempt from IP: {}", request.getRemoteAddr());
             response.setStatus(HttpServletResponse.SC_FORBIDDEN);
             response.setContentType("application/json");
@@ -80,8 +94,16 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
             return;
         }
 
+        // value format: tenantId:scopes
+        String[] parts = value.split(":", 2);
+        String tenantId = parts[0];
+
         setAuthentication(tenantId);
         request.setAttribute("tenant_id", tenantId);
+        if (parts.length > 1) {
+            request.setAttribute("scopes", parts[1]);
+        }
+
         filterChain.doFilter(request, response);
     }
 
@@ -90,6 +112,20 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
             tenantId, null, List.of(new SimpleGrantedAuthority("ROLE_TENANT"))
         );
         SecurityContextHolder.getContext().setAuthentication(auth);
+    }
+
+    static String sha256(String input) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder();
+            for (byte b : hash) {
+                sb.append(String.format("%02x", b));
+            }
+            return sb.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("SHA-256 not available", e);
+        }
     }
 
     @Override
