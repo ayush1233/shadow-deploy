@@ -7,6 +7,7 @@ import com.shadow.platform.comparison.service.AIExplanationService;
 import com.shadow.platform.comparison.service.CorrelationService;
 import com.shadow.platform.comparison.service.DeterministicComparator;
 import com.shadow.platform.comparison.service.NoiseDetectionService;
+import com.shadow.platform.comparison.service.ResponseFetcher;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
@@ -36,6 +37,7 @@ public class TrafficConsumer {
     private final AIComparisonClient aiComparisonClient;
     private final AIExplanationService aiExplanationService;
     private final NoiseDetectionService noiseDetectionService;
+    private final ResponseFetcher responseFetcher;
     private final KafkaTemplate<String, ComparisonResult> kafkaTemplate;
     private final ObjectMapper objectMapper;
     private final Counter processedCounter;
@@ -52,6 +54,7 @@ public class TrafficConsumer {
             AIComparisonClient aiComparisonClient,
             AIExplanationService aiExplanationService,
             NoiseDetectionService noiseDetectionService,
+            ResponseFetcher responseFetcher,
             KafkaTemplate<String, ComparisonResult> kafkaTemplate,
             MeterRegistry meterRegistry) {
         this.correlationService = correlationService;
@@ -59,6 +62,7 @@ public class TrafficConsumer {
         this.aiComparisonClient = aiComparisonClient;
         this.aiExplanationService = aiExplanationService;
         this.noiseDetectionService = noiseDetectionService;
+        this.responseFetcher = responseFetcher;
         this.kafkaTemplate = kafkaTemplate;
         this.objectMapper = new ObjectMapper();
         this.objectMapper.findAndRegisterModules();
@@ -98,8 +102,32 @@ public class TrafficConsumer {
         String requestId = getString(prodData, "request_id");
 
         try {
-            // ── Step 1: Get noisy fields for this tenant/endpoint ──
+            // ── Step 0: Fetch actual response bodies if missing (NGINX mirror limitation) ──
             String endpoint = getString(prodData, "endpoint");
+            String method = getString(prodData, "method");
+            String prodBody = getString(prodData, "response_body");
+            String shadowBody = getString(shadowData, "response_body");
+
+            if ((prodBody == null || prodBody.isBlank()) && endpoint != null) {
+                log.debug("Fetching actual response bodies for request_id={} [endpoint={}]", requestId, endpoint);
+                ResponseFetcher.FetchResult prodResult = responseFetcher.fetchProd(endpoint, method);
+                ResponseFetcher.FetchResult shadowResult = responseFetcher.fetchShadow(endpoint, method);
+
+                if (prodResult != null) {
+                    prodData.put("response_body", prodResult.body());
+                    if (prodData.get("response_status") == null) {
+                        prodData.put("response_status", prodResult.statusCode());
+                    }
+                }
+                if (shadowResult != null) {
+                    shadowData.put("response_body", shadowResult.body());
+                    if (shadowData.get("response_status") == null) {
+                        shadowData.put("response_status", shadowResult.statusCode());
+                    }
+                }
+            }
+
+            // ── Step 1: Get noisy fields for this tenant/endpoint ──
             String tenantId = getString(prodData, "tenant_id");
             Set<String> noisyFields = noiseDetectionService.getNoisyFields(tenantId, endpoint);
 
@@ -116,8 +144,8 @@ public class TrafficConsumer {
 
             // ── Step 3: AI Comparison (only if deterministic detected mismatch) ──
             if (!result.isDeterministicPass()) {
-                String prodBody = getString(prodData, "response_body");
-                String shadowBody = getString(shadowData, "response_body");
+                prodBody = getString(prodData, "response_body");
+                shadowBody = getString(shadowData, "response_body");
                 result = aiComparisonClient.enrichWithAI(result, prodBody, shadowBody);
 
                 // ── Step 3.5: AI Explanation ──

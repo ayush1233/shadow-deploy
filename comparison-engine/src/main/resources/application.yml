@@ -87,6 +87,11 @@ shadow:
     min-samples: 10
     threshold-percent: 80
     ttl-hours: 24
+  backends:
+    prod-host: ${PROD_BACKEND_HOST:host.docker.internal}
+    prod-port: ${PROD_BACKEND_PORT:3000}
+    shadow-host: ${SHADOW_BACKEND_HOST:host.docker.internal}
+    shadow-port: ${SHADOW_BACKEND_PORT:4000}
 
 management:
   endpoints:
