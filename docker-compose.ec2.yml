@@ -1,0 +1,16 @@
+# EC2 overrides — run with:
+#   docker compose -f docker-compose.yml -f docker-compose.ec2.yml up -d
+#
+# On EC2, NGINX is the public-facing gateway on port 80.
+# The v2-ticket-ai stack exposes V1 on host port 5001 and V2 on host port 5002.
+# Containers reach the host via host.docker.internal (requires Docker 20.10+).
+
+services:
+  nginx-proxy:
+    ports:
+      - "80:80"
+      - "443:443"
+
+  dashboard:
+    ports:
+      - "3004:80"

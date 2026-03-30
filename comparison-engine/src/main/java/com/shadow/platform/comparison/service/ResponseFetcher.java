@@ -27,9 +27,9 @@ public class ResponseFetcher {
 
     public ResponseFetcher(
             @Value("${shadow.backends.prod-host:host.docker.internal}") String prodHost,
-            @Value("${shadow.backends.prod-port:3000}") int prodPort,
+            @Value("${shadow.backends.prod-port:5001}") int prodPort,
             @Value("${shadow.backends.shadow-host:host.docker.internal}") String shadowHost,
-            @Value("${shadow.backends.shadow-port:4000}") int shadowPort) {
+            @Value("${shadow.backends.shadow-port:5002}") int shadowPort) {
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(5))
                 .build();

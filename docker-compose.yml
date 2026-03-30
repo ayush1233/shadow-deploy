@@ -208,6 +208,10 @@ services:
       - JAVA_TOOL_OPTIONS=-Djava.net.preferIPv4Stack=true
       - AI_SERVICE_URL=http://ai-service:8000
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - PROD_BACKEND_HOST=${PROD_BACKEND_HOST:-host.docker.internal}
+      - PROD_BACKEND_PORT=${PROD_BACKEND_PORT:-5001}
+      - SHADOW_BACKEND_HOST=${SHADOW_BACKEND_HOST:-host.docker.internal}
+      - SHADOW_BACKEND_PORT=${SHADOW_BACKEND_PORT:-5002}
     networks:
       - shadow-net
     extra_hosts:

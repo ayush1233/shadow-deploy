@@ -89,9 +89,9 @@ shadow:
     ttl-hours: 24
   backends:
     prod-host: ${PROD_BACKEND_HOST:host.docker.internal}
-    prod-port: ${PROD_BACKEND_PORT:3000}
+    prod-port: ${PROD_BACKEND_PORT:5001}
     shadow-host: ${SHADOW_BACKEND_HOST:host.docker.internal}
-    shadow-port: ${SHADOW_BACKEND_PORT:4000}
+    shadow-port: ${SHADOW_BACKEND_PORT:5002}
 
 management:
   endpoints:
