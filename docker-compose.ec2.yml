@@ -14,3 +14,17 @@ services:
   dashboard:
     ports:
       - "3004:80"
+
+  # Disable services not needed on EC2
+  sample-api-v1:
+    deploy:
+      replicas: 0
+  sample-api-v2:
+    deploy:
+      replicas: 0
+  prometheus:
+    deploy:
+      replicas: 0
+  grafana:
+    deploy:
+      replicas: 0
