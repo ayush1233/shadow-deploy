@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { configureProxy, getMetricsSummary, getRiskTrend, listComparisons } from '../services/api';
-import { exportCsv } from '../utils/exportCsv';
-import { exportPdf } from '../utils/exportPdf';
+import { exportOverviewCsv } from '../utils/exportCsv';
+import { exportOverviewPdf } from '../utils/exportPdf';
 import PageHeader from '../components/layout/PageHeader';
 import StatCard from '../components/ui/StatCard';
 import RiskGauge from '../components/ui/RiskGauge';
@@ -99,8 +99,9 @@ export default function OverviewPage() {
         shadow: Math.round(data.avg_shadow_latency || 0),
     }));
     const formatNum = (num: number) => num >= 1000 ? (num / 1000).toFixed(1) + 'K' : num.toString();
-    const handleExportCsv = () => { if (trendData.length > 0) exportCsv(trendData, 'shadow-risk-trend.csv'); };
-    const handleExportPdf = () => { if (trendData.length > 0) exportPdf(trendData, 'Risk Trend Report', 'shadow-risk-trend.pdf'); };
+    const exportData = { metrics, trendData, recentComparisons, severityData, latencyData, trendRange };
+    const handleExportCsv = () => { if (metrics) exportOverviewCsv(exportData, 'shadow-dashboard-report.csv'); };
+    const handleExportPdf = () => { if (metrics) exportOverviewPdf(exportData, 'shadow-dashboard-report.pdf'); };
 
     return (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }}>

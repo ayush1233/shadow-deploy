@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { listComparisons, getEndpointTags, createEndpointTag, deleteEndpointTag } from '../services/api';
-import { exportCsv } from '../utils/exportCsv';
-import { exportPdf } from '../utils/exportPdf';
+import { exportEndpointAnalysisCsv } from '../utils/exportCsv';
+import { exportEndpointAnalysisPdf } from '../utils/exportPdf';
 import PageHeader from '../components/layout/PageHeader';
 import GlassCard from '../components/ui/GlassCard';
 import SeverityBadge from '../components/ui/SeverityBadge';
@@ -76,11 +76,11 @@ export default function EndpointAnalysisPage() {
                 description="Filter and analyze live API endpoint comparison results"
                 actions={
                     <div style={{ display: 'flex', gap: 8 }}>
-                        <button className="btn btn-secondary" onClick={() => { if (comparisons.length > 0) exportCsv(comparisons, 'endpoint-analysis.csv'); }}>
+                        <button className="btn btn-secondary" onClick={() => { if (comparisons.length > 0) exportEndpointAnalysisCsv({ comparisons, filters: { endpoint: endpointFilter, severity: severityFilter, timeRange }, totalResults }, 'endpoint-analysis.csv'); }}>
                             <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1v7M3 5.5L6 8.5 9 5.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/><path d="M1 9v1.5a.5.5 0 00.5.5h9a.5.5 0 00.5-.5V9" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>
                             CSV
                         </button>
-                        <button className="btn btn-secondary" onClick={() => { if (comparisons.length > 0) exportPdf(comparisons, 'Endpoint Analysis', 'endpoint-analysis.pdf'); }}>PDF</button>
+                        <button className="btn btn-secondary" onClick={() => { if (comparisons.length > 0) exportEndpointAnalysisPdf({ comparisons, filters: { endpoint: endpointFilter, severity: severityFilter, timeRange }, totalResults }, 'endpoint-analysis.pdf'); }}>PDF</button>
                     </div>
                 }
             />
