@@ -11,9 +11,9 @@ help: ## Show this help message
 
 setup: ## Run interactive setup wizard
 ifeq ($(OS),Windows_NT)
-	@powershell -ExecutionPolicy Bypass -File setup.ps1
+	@powershell -ExecutionPolicy Bypass -File scripts/setup.ps1
 else
-	@bash setup.sh
+	@bash scripts/setup.sh
 endif
 
 dev: ## Start dashboard in dev mode (hot reload)
@@ -46,9 +46,9 @@ logs-ingestion: ## Tail ingestion service logs
 
 test: ## Run end-to-end platform test
 ifeq ($(OS),Windows_NT)
-	@powershell -ExecutionPolicy Bypass -File test-platform.ps1
+	@powershell -ExecutionPolicy Bypass -File scripts/test-platform.ps1
 else
-	@bash test-platform.sh
+	@bash scripts/test-platform.sh
 endif
 
 health: ## Check health of all services

@@ -33,6 +33,11 @@ Thumbs.db
 # Docker
 docker-compose.override.yml
 
-# Logs
+# Logs & debug output
 *.log
 *_logs.txt
+*_log.txt
+*_check.txt
+*_status.txt
+test_result*.json
+endpoint.txt
