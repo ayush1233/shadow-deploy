@@ -51,7 +51,6 @@ function addFooters(doc: jsPDF, reportName: string) {
     const pw = doc.internal.pageSize.getWidth();
     for (let i = 1; i <= pageCount; i++) {
         doc.setPage(i);
-        if (i > 1) initPage(doc);
         const ph = doc.internal.pageSize.getHeight();
         doc.setFillColor(...COLORS.dark);
         doc.rect(0, ph - 12, pw, 12, 'F');
@@ -62,8 +61,21 @@ function addFooters(doc: jsPDF, reportName: string) {
     }
 }
 
+/** Create a jsPDF doc that auto-paints the dark background on every new page */
+function createDoc(orientation?: 'p' | 'l'): jsPDF {
+    const doc = new jsPDF(orientation);
+    initPage(doc);
+    const origAddPage = doc.addPage.bind(doc);
+    (doc as any).addPage = function (...args: any[]) {
+        const result = origAddPage(...args);
+        initPage(doc);
+        return result;
+    };
+    return doc;
+}
+
 function addSectionTitle(doc: jsPDF, y: number, title: string): number {
-    if (y > 260) { doc.addPage(); initPage(doc); y = 20; }
+    if (y > 260) { doc.addPage(); y = 20; }
     doc.setFontSize(13);
     doc.setTextColor(...COLORS.white);
     doc.text(title, 14, y);
@@ -75,7 +87,7 @@ function addSectionTitle(doc: jsPDF, y: number, title: string): number {
 }
 
 function addKeyValue(doc: jsPDF, y: number, label: string, value: string, valueColor?: [number, number, number]): number {
-    if (y > 275) { doc.addPage(); initPage(doc); y = 20; }
+    if (y > 275) { doc.addPage(); y = 20; }
     doc.setFontSize(9);
     doc.setTextColor(...COLORS.muted);
     doc.text(label, 16, y);
@@ -90,7 +102,7 @@ function addWrappedText(doc: jsPDF, y: number, text: string, maxWidth: number = 
     doc.setTextColor(...COLORS.lightGray);
     const lines = doc.splitTextToSize(text, maxWidth);
     for (const line of lines) {
-        if (y > 278) { doc.addPage(); initPage(doc); y = 20; }
+        if (y > 278) { doc.addPage(); y = 20; }
         doc.text(line, 16, y);
         y += 4.5;
     }
@@ -98,7 +110,7 @@ function addWrappedText(doc: jsPDF, y: number, text: string, maxWidth: number = 
 }
 
 function addCodeBlock(doc: jsPDF, y: number, code: string, label: string, maxLines: number = 50): number {
-    if (y > 240) { doc.addPage(); initPage(doc); y = 20; }
+    if (y > 240) { doc.addPage(); y = 20; }
 
     doc.setFontSize(9);
     doc.setTextColor(...COLORS.muted);
@@ -110,7 +122,7 @@ function addCodeBlock(doc: jsPDF, y: number, code: string, label: string, maxLin
     const lineHeight = 3.8;
     const blockHeight = Math.min(lines.length * lineHeight + 8, 200);
 
-    if (y + blockHeight > 278) { doc.addPage(); initPage(doc); y = 20; }
+    if (y + blockHeight > 278) { doc.addPage(); y = 20; }
 
     doc.setFillColor(10, 10, 14);
     doc.setDrawColor(50, 50, 60);
@@ -120,7 +132,7 @@ function addCodeBlock(doc: jsPDF, y: number, code: string, label: string, maxLin
     doc.setTextColor(...COLORS.lightGray);
     let lineY = y + 4;
     for (const line of lines) {
-        if (lineY > 278) { doc.addPage(); initPage(doc); lineY = 20; }
+        if (lineY > 278) { doc.addPage(); lineY = 20; }
         const truncated = line.length > 120 ? line.substring(0, 117) + '...' : line;
         doc.text(truncated, 17, lineY);
         lineY += lineHeight;
@@ -199,8 +211,7 @@ interface ComparisonExportData {
 
 export const exportComparisonPdf = (exportData: ComparisonExportData, filename: string) => {
     const { requestId, endpoint, method, comparison: comp, production, shadow, prodBody, shadowBody } = exportData;
-    const doc = new jsPDF();
-    initPage(doc);
+    const doc = createDoc();
     addHeader(doc, 'Shadow Deploy', 'Comparison Report', `Report ID: ${requestId}`);
 
     let y = 48;
@@ -293,7 +304,7 @@ export const exportComparisonPdf = (exportData: ComparisonExportData, filename: 
     }
 
     // Response Bodies
-    doc.addPage(); initPage(doc); y = 20;
+    doc.addPage(); y = 20;
     y = addSectionTitle(doc, y, `Production Response (v1) - Status ${production.status_code ?? 'N/A'}`);
     if (prodBody && prodBody.trim() !== '{}') { y = addCodeBlock(doc, y, prodBody, `Response Body  |  ${production.response_time_ms ?? '?'}ms`, 60); }
     else { y = addKeyValue(doc, y, 'Body:', '(empty or not captured)', COLORS.muted); y += 4; }
@@ -321,8 +332,7 @@ interface OverviewExportData {
 
 export const exportOverviewPdf = (data: OverviewExportData, filename: string) => {
     const { metrics, trendData, recentComparisons, severityData, latencyData, trendRange } = data;
-    const doc = new jsPDF();
-    initPage(doc);
+    const doc = createDoc();
     addHeader(doc, 'Shadow Deploy', 'Dashboard Overview Report', `Period: Last ${trendRange} days`);
 
     let y = 48;
@@ -414,7 +424,7 @@ export const exportOverviewPdf = (data: OverviewExportData, filename: string) =>
 
     // Risk Trend Data
     if (trendData.length > 0) {
-        doc.addPage(); initPage(doc); y = 20;
+        doc.addPage(); y = 20;
         y = addSectionTitle(doc, y, `Risk & Pass Rate Trend (Last ${trendRange} Days)`);
         autoTable(doc, {
             ...tableStyles, startY: y,
@@ -489,8 +499,7 @@ export const exportEndpointAnalysisPdf = (data: EndpointExportData, filename: st
     const { comparisons, filters, totalResults } = data;
     if (!comparisons || comparisons.length === 0) return;
 
-    const doc = new jsPDF('l'); // landscape for wider table
-    initPage(doc);
+    const doc = createDoc('l'); // landscape for wider table
     addHeader(doc, 'Shadow Deploy', 'Endpoint Analysis Report', `${comparisons.length} of ${totalResults} results`);
 
     let y = 48;
@@ -547,7 +556,7 @@ export const exportEndpointAnalysisPdf = (data: EndpointExportData, filename: st
     y = (doc as any).lastAutoTable.finalY + 10;
 
     // Full Comparison Table
-    doc.addPage(); initPage(doc); y = 20;
+    doc.addPage(); y = 20;
     y = addSectionTitle(doc, y, 'Comparison Results');
 
     autoTable(doc, {
