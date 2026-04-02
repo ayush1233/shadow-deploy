@@ -1,7 +1,7 @@
 # Force bash shell for consistent behavior on Windows (Git Bash) and Unix
 SHELL := bash
 
-.PHONY: help setup dev start stop restart logs test clean health build status db-migrate configure logs-api logs-ai logs-comparison logs-ingestion
+.PHONY: help setup dev start stop restart logs test clean health build status db-migrate configure shadow logs-api logs-ai logs-comparison logs-ingestion
 
 # Default target
 help: ## Show this help message
@@ -45,8 +45,11 @@ logs-ingestion: ## Tail ingestion service logs
 	docker-compose logs -f ingestion-service
 
 test: ## Run end-to-end platform test
-	@echo "Running platform tests..."
-	python cli/demo.py
+ifeq ($(OS),Windows_NT)
+	@powershell -ExecutionPolicy Bypass -File test-platform.ps1
+else
+	@bash test-platform.sh
+endif
 
 health: ## Check health of all services
 	@python cli/healthcheck.py
@@ -68,3 +71,10 @@ db-migrate: ## Print instructions to run Supabase schema migration
 
 configure: ## Configure NGINX via natural language (usage: make configure PROMPT="...")
 	@python cli/configure-proxy.py "$(PROMPT)"
+
+shadow: ## Start shadow testing (usage: make shadow PROD_PORT=3000 SHADOW_PORT=4000 SHADOW_DIR=path/to/v2)
+ifeq ($(OS),Windows_NT)
+	@powershell -ExecutionPolicy Bypass -File cli/start-shadow.ps1 -ProdPort $(or $(PROD_PORT),3000) -ShadowPort $(or $(SHADOW_PORT),4000) $(if $(SHADOW_DIR),-ShadowAppDir "$(SHADOW_DIR)")
+else
+	@bash cli/start-shadow.sh -p $(or $(PROD_PORT),3000) -s $(or $(SHADOW_PORT),4000) $(if $(SHADOW_DIR),-d "$(SHADOW_DIR)")
+endif
