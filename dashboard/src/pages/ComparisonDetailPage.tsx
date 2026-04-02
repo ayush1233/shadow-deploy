@@ -3,8 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { getComparison } from '../services/api';
 import { motion } from 'framer-motion';
 import ReactDiffViewer from 'react-diff-viewer-continued';
-import { exportCsv } from '../utils/exportCsv';
-import { exportPdf } from '../utils/exportPdf';
+import { exportComparisonCsv } from '../utils/exportCsv';
+import { exportComparisonPdf } from '../utils/exportPdf';
 import PageHeader from '../components/layout/PageHeader';
 import GlassCard from '../components/ui/GlassCard';
 import SeverityBadge from '../components/ui/SeverityBadge';
@@ -71,7 +71,9 @@ export default function ComparisonDetailPage() {
     }
     const latencyDiff = comp.latency_delta_ms || 0;
     const simScore = comp.similarity_score || 1;
-    const handlePdfExport = () => exportPdf([{ 'Request ID': requestId, Endpoint: data.endpoint, Method: data.method, Similarity: `${(simScore * 100).toFixed(1)}%`, 'Risk Score': Number(comp.risk_score).toFixed(1), Severity: comp.severity }], 'Comparison Detail', `comparison-${requestId}.pdf`);
+    const exportData = { requestId: requestId!, endpoint: data.endpoint, method: data.method, comparison: comp, production: data.production, shadow: data.shadow, prodBody: prodBodyRaw, shadowBody: shadowBodyRaw };
+    const handlePdfExport = () => exportComparisonPdf(exportData, `comparison-${requestId}.pdf`);
+    const handleCsvExport = () => exportComparisonCsv(exportData, `comparison-${requestId}.csv`);
 
     return (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
@@ -79,7 +81,7 @@ export default function ComparisonDetailPage() {
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8 2L4 6l4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                 Endpoint Analysis
             </button>
-            <PageHeader title="Comparison Detail" description={`${data.method || 'GET'} ${data.endpoint} \u2014 ${requestId}`} actions={<div style={{ display: 'flex', gap: 8 }}><SeverityBadge severity={comp.severity} size="md" /><button className="btn btn-secondary" onClick={() => exportCsv([comp], `comparison-${requestId}.csv`)}>CSV</button><button className="btn btn-secondary" onClick={handlePdfExport}>PDF</button></div>} />
+            <PageHeader title="Comparison Detail" description={`${data.method || 'GET'} ${data.endpoint} \u2014 ${requestId}`} actions={<div style={{ display: 'flex', gap: 8 }}><SeverityBadge severity={comp.severity} size="md" /><button className="btn btn-secondary" onClick={handleCsvExport}>CSV</button><button className="btn btn-secondary" onClick={handlePdfExport}>PDF</button></div>} />
 
             {/* Metrics Strip */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
