@@ -50,7 +50,7 @@ export default function OverviewPage() {
         const fetchAll = async () => {
             try {
                 const [summaryRes, trendRes, recentRes] = await Promise.all([
-                    getMetricsSummary(),
+                    getMetricsSummary(trendRange),
                     getRiskTrend(trendRange),
                     listComparisons({ size: 5 }),
                 ]);

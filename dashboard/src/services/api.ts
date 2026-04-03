@@ -54,10 +54,19 @@ export const getSession = async () => {
 };
 
 // ── Metrics ──
-export const getMetricsSummary = async () => {
+export const getMetricsSummary = async (days: number = 7) => {
     // Fetch all comparisons and compute client-side (same logic as before, but from API)
     const { data: result } = await api.get('/comparisons', { params: { size: 1000 } });
-    const all = result.data || [];
+    const raw = result.data || [];
+
+    // Filter by requested time range
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - days);
+    const cutoffISO = cutoff.toISOString();
+    const all = raw.filter((c: any) => {
+        const ts = c.timestamp || c.created_at;
+        return ts && ts >= cutoffISO;
+    });
     const total = all.length;
 
     // Count mismatches (use deterministic_pass if available, else body_match)
@@ -159,10 +168,17 @@ export const getRiskTrend = async (days: number = 7) => {
     const { data: result } = await api.get('/comparisons', { params: { size: 1000 } });
     const all = result.data || [];
 
+    // Compute cutoff date based on the requested range
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - days);
+    const cutoffISO = cutoff.toISOString();
+
     const grouped: Record<string, { count: number; riskSum: number; passes: number }> = {};
     all.forEach((row: any) => {
         const ts = row.timestamp || row.created_at;
         if (!ts) return;
+        // Skip entries older than the requested range
+        if (ts < cutoffISO) return;
         const date = ts.substring(0, 10);
         if (!grouped[date]) grouped[date] = { count: 0, riskSum: 0, passes: 0 };
         grouped[date].count++;
@@ -170,12 +186,14 @@ export const getRiskTrend = async (days: number = 7) => {
         if (row.deterministic_pass) grouped[date].passes++;
     });
 
-    return Object.entries(grouped).map(([date, stats]) => ({
-        date,
-        avg_risk: (stats.riskSum / stats.count).toFixed(2),
-        count: stats.count,
-        pass_rate: ((stats.passes / stats.count) * 100).toFixed(1),
-    }));
+    return Object.entries(grouped)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([date, stats]) => ({
+            date,
+            avg_risk: (stats.riskSum / stats.count).toFixed(2),
+            count: stats.count,
+            pass_rate: ((stats.passes / stats.count) * 100).toFixed(1),
+        }));
 };
 
 // ── Endpoint Tags (stored in localStorage since we don't have Supabase) ──
