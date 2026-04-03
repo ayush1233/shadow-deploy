@@ -52,7 +52,7 @@ const nodes: ServiceNode[] = [
     { id: 'kafka', label: 'Apache Kafka', port: topoConfig.kafkaPort, icon: '📨', type: 'infra', desc: 'Event streaming broker', x: 40, y: 470 },
     { id: 'comparison', label: 'Comparison Engine', port: topoConfig.comparisonPort, icon: '⚖️', type: 'engine', desc: 'Joins & compares v1 vs v2', x: 40, y: 650 },
     { id: 'ai', label: 'AI Service', port: topoConfig.aiServicePort, icon: '🧠', type: 'ai', desc: 'Gemini semantic analysis', x: 420, y: 650 },
-    { id: 'supabase', label: 'Supabase DB', port: 5432, icon: '🗄️', type: 'database', desc: 'PostgreSQL + Auth', x: 700, y: 560 },
+    { id: 'supabase', label: 'Shadow DB', port: 5433, icon: '🗄️', type: 'database', desc: 'PostgreSQL for comparison results', x: 700, y: 560 },
     { id: 'dashboard', label: 'Dashboard UI', port: topoConfig.dashboardPort, icon: '📊', type: 'dashboard', desc: 'React monitoring dashboard', x: 700, y: 800 },
     { id: 'api', label: 'API Service', port: topoConfig.apiServicePort, icon: '🔌', type: 'infra', desc: 'REST API for dashboard', x: 370, y: 860 },
 ];
@@ -303,7 +303,7 @@ export default function TopologyPage() {
                                 <div style={{ fontSize: 18 }}>{node.icon}</div>
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{node.label}</div>
-                                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1, fontFamily: 'var(--font-mono)' }}>localhost:{node.port}</div>
+                                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1, fontFamily: 'var(--font-mono)' }}>{['prod', 'shadow'].includes(node.id) ? 'host.docker.internal' : node.id === 'client' ? '' : node.label.toLowerCase().replace(/\s+/g, '-')}:{node.port}</div>
                                 </div>
                                 <div style={{
                                     width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
