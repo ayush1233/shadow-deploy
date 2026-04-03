@@ -52,6 +52,17 @@ function addFooters(doc: jsPDF, reportName: string) {
     for (let i = 1; i <= pageCount; i++) {
         doc.setPage(i);
         const ph = doc.internal.pageSize.getHeight();
+        // Paint dark background UNDER all existing content on this page.
+        // Pages auto-created by jspdf-autotable bypass the addPage hook,
+        // so we must ensure every page gets the dark bg here at the end.
+        // The 'S' (stroke-only) isn't what we want — but jsPDF draws in
+        // document order, so new rects go OVER old content. To put the bg
+        // BEHIND, we use the GState trick: we insert the bg rect at the
+        // very back of the page's content stream — but jsPDF doesn't
+        // support z-ordering. Instead we skip page 1 (already painted by
+        // initPage before any content) and only fix overflow pages.
+        // -- actually the simplest reliable fix is done in createDoc,
+        // which subscribes to the internal addPage event.
         doc.setFillColor(...COLORS.dark);
         doc.rect(0, ph - 12, pw, 12, 'F');
         doc.setFontSize(7);
@@ -61,16 +72,18 @@ function addFooters(doc: jsPDF, reportName: string) {
     }
 }
 
-/** Create a jsPDF doc that auto-paints the dark background on every new page */
+/** Create a jsPDF doc that auto-paints the dark background on every new page.
+ *  Uses jsPDF's internal event bus so that pages created by jspdf-autotable
+ *  (which bypass instance-level addPage monkey-patches) also get the bg. */
 function createDoc(orientation?: 'p' | 'l'): jsPDF {
     const doc = new jsPDF(orientation);
+    // Paint the first page immediately
     initPage(doc);
-    const origAddPage = doc.addPage.bind(doc);
-    (doc as any).addPage = function (...args: any[]) {
-        const result = origAddPage(...args);
+    // Subscribe to the internal 'addPage' event so ALL future pages
+    // (including those created by autoTable overflow) get the dark bg.
+    (doc as any).internal.events.subscribe('addPage', () => {
         initPage(doc);
-        return result;
-    };
+    });
     return doc;
 }
 
