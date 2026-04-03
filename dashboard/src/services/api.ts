@@ -53,6 +53,12 @@ export const getSession = async () => {
     return null;
 };
 
+// ── Topology ──
+export const getTopology = async () => {
+    const { data } = await api.get('/topology');
+    return data;
+};
+
 // ── Metrics ──
 export const getMetricsSummary = async (days: number = 7) => {
     // Fetch all comparisons and compute client-side (same logic as before, but from API)

@@ -1,14 +1,15 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import topoConfig from '../topology-config.json';
+import { getTopology } from '../services/api';
 import { useMouseParallax } from '../hooks/useMouseParallax';
 import PageHeader from '../components/layout/PageHeader';
 import GlassCard from '../components/ui/GlassCard';
+import { PageSkeleton } from '../components/ui/SkeletonLoader';
 
 // ── Types ──
 interface ServiceNode {
     id: string; label: string; port: number; icon: string; type: string;
-    desc: string; x: number; y: number;
+    desc: string; health: string; hostname: string; x: number; y: number;
 }
 interface Connection {
     from: string; to: string; label: string; type: string;
@@ -28,10 +29,39 @@ const nodeStyles: Record<string, { bg: string; border: string; glow: string }> =
     ai: { bg: 'rgba(14,165,233,0.12)', border: 'rgba(14,165,233,0.5)', glow: '0 0 20px rgba(14,165,233,0.2)' },
     database: { bg: 'rgba(16,185,129,0.12)', border: 'rgba(16,185,129,0.5)', glow: '0 0 20px rgba(16,185,129,0.2)' },
     dashboard: { bg: 'rgba(99,102,241,0.12)', border: 'rgba(99,102,241,0.5)', glow: '0 0 20px rgba(99,102,241,0.2)' },
-    monitoring: { bg: 'rgba(34,211,238,0.12)', border: 'rgba(34,211,238,0.5)', glow: '0 0 20px rgba(34,211,238,0.2)' },
     cache: { bg: 'rgba(251,146,60,0.12)', border: 'rgba(251,146,60,0.5)', glow: '0 0 20px rgba(251,146,60,0.2)' },
 };
 const fallback = { bg: 'rgba(148,163,184,0.12)', border: 'rgba(148,163,184,0.4)', glow: 'none' };
+
+const healthDot: Record<string, string> = {
+    healthy: '#10b981',
+    unhealthy: '#ef4444',
+    unreachable: '#6b7280',
+    unknown: '#f59e0b',
+};
+
+const icons: Record<string, string> = {
+    'nginx-proxy': '🔀', production: '🟢', shadow: '👻',
+    'ingestion-service': '📥', kafka: '📨', 'comparison-engine': '⚖️',
+    'ai-service': '🧠', postgres: '🗄️', redis: '⚡',
+    dashboard: '📊', 'api-service': '🔌', client: '🌐',
+};
+
+// ── Layout positions for the SVG diagram ──
+const layoutPositions: Record<string, { x: number; y: number }> = {
+    client: { x: 40, y: 180 },
+    'nginx-proxy': { x: 350, y: 180 },
+    production: { x: 700, y: 50 },
+    shadow: { x: 700, y: 310 },
+    'ingestion-service': { x: 500, y: 470 },
+    kafka: { x: 40, y: 470 },
+    'comparison-engine': { x: 40, y: 650 },
+    'ai-service': { x: 420, y: 650 },
+    postgres: { x: 700, y: 560 },
+    dashboard: { x: 700, y: 800 },
+    'api-service': { x: 370, y: 860 },
+    redis: { x: 40, y: 860 },
+};
 
 // ── SVG helpers ──
 const ctr = (n: ServiceNode) => ({ x: n.x + 80, y: n.y + 35 });
@@ -41,44 +71,73 @@ const curve = (a: ServiceNode, b: ServiceNode) => {
 };
 
 // ═════════════════════════════════════════════════
-// Build the architecture from extracted config
+// Build nodes & connections from live API data
 // ═════════════════════════════════════════════════
-const nodes: ServiceNode[] = [
-    { id: 'client', label: 'User Browser', port: 0, icon: '🌐', type: 'client', desc: 'End users making requests', x: 40, y: 180 },
-    { id: 'nginx', label: 'NGINX Proxy', port: topoConfig.proxyPort, icon: '🔀', type: 'proxy', desc: 'Reverse proxy & traffic mirror', x: 350, y: 180 },
-    { id: 'prod', label: 'Production (v1)', port: topoConfig.prodPort, icon: '🟢', type: 'production', desc: 'Stable version users interact with', x: 700, y: 50 },
-    { id: 'shadow', label: 'Shadow (v2)', port: topoConfig.shadowPort, icon: '👻', type: 'shadow', desc: 'New version being tested', x: 700, y: 310 },
-    { id: 'ingestion', label: 'Ingestion Service', port: topoConfig.ingestionPort, icon: '📥', type: 'infra', desc: 'Captures & normalizes traffic', x: 500, y: 470 },
-    { id: 'kafka', label: 'Apache Kafka', port: topoConfig.kafkaPort, icon: '📨', type: 'infra', desc: 'Event streaming broker', x: 40, y: 470 },
-    { id: 'comparison', label: 'Comparison Engine', port: topoConfig.comparisonPort, icon: '⚖️', type: 'engine', desc: 'Joins & compares v1 vs v2', x: 40, y: 650 },
-    { id: 'ai', label: 'AI Service', port: topoConfig.aiServicePort, icon: '🧠', type: 'ai', desc: 'Gemini semantic analysis', x: 420, y: 650 },
-    { id: 'supabase', label: 'Shadow DB', port: 5433, icon: '🗄️', type: 'database', desc: 'PostgreSQL for comparison results', x: 700, y: 560 },
-    { id: 'dashboard', label: 'Dashboard UI', port: topoConfig.dashboardPort, icon: '📊', type: 'dashboard', desc: 'React monitoring dashboard', x: 700, y: 800 },
-    { id: 'api', label: 'API Service', port: topoConfig.apiServicePort, icon: '🔌', type: 'infra', desc: 'REST API for dashboard', x: 370, y: 860 },
-];
+function buildTopology(data: any): { allNodes: ServiceNode[]; connections: Connection[]; } {
+    const prodPort = data.prodPort || 5001;
+    const shadowPort = data.shadowPort || 5002;
+    const prodHost = data.prodHost || 'host.docker.internal';
+    const shadowHost = data.shadowHost || 'host.docker.internal';
 
-const extraServices: ServiceNode[] = [];
-if (topoConfig.services.includes('redis')) {
-    extraServices.push({ id: 'redis', label: 'Redis', port: 6379, icon: '⚡', type: 'cache', desc: 'In-memory cache', x: 40, y: 860 });
-}
+    // Start with the browser client (always present)
+    const allNodes: ServiceNode[] = [
+        {
+            id: 'client', label: 'User Browser', port: 0, icon: '🌐',
+            type: 'client', desc: 'End users making requests', health: 'healthy',
+            hostname: '', ...layoutPositions['client'],
+        },
+    ];
 
-const allNodes = [...nodes, ...extraServices];
+    // Map API services to nodes
+    const serviceList: any[] = data.services || [];
+    serviceList.forEach((svc: any) => {
+        const pos = layoutPositions[svc.id] || { x: 400, y: 400 };
+        let hostname = svc.id;
+        if (svc.id === 'production') hostname = prodHost;
+        else if (svc.id === 'shadow') hostname = shadowHost;
 
-const connections: Connection[] = [
-    { from: 'client', to: 'nginx', label: 'HTTP Request', type: 'primary' },
-    { from: 'nginx', to: 'prod', label: `Forward → :${topoConfig.prodPort}`, type: 'primary' },
-    { from: 'nginx', to: 'shadow', label: `Mirror → :${topoConfig.shadowPort}`, type: 'mirror' },
-    { from: 'nginx', to: 'ingestion', label: 'Capture responses', type: 'async' },
-    { from: 'ingestion', to: 'kafka', label: 'Publish events', type: 'async' },
-    { from: 'kafka', to: 'comparison', label: 'Consume streams', type: 'async' },
-    { from: 'comparison', to: 'ai', label: 'Analyze mismatches', type: 'data' },
-    { from: 'comparison', to: 'supabase', label: 'Store results', type: 'data' },
-    { from: 'supabase', to: 'dashboard', label: 'Fetch data', type: 'data' },
-    { from: 'api', to: 'supabase', label: 'Query DB', type: 'data' },
-];
+        allNodes.push({
+            id: svc.id,
+            label: svc.label,
+            port: svc.port,
+            icon: icons[svc.id] || '📦',
+            type: svc.type,
+            desc: svc.desc || '',
+            health: svc.health || 'unknown',
+            hostname,
+            ...pos,
+        });
+    });
 
-if (topoConfig.services.includes('redis')) {
-    connections.push({ from: 'comparison', to: 'redis', label: 'Cache pairs', type: 'data' });
+    // Build connections dynamically based on which services exist
+    const has = (id: string) => allNodes.some(n => n.id === id);
+    const connections: Connection[] = [];
+
+    if (has('nginx-proxy')) {
+        connections.push({ from: 'client', to: 'nginx-proxy', label: 'HTTP Request', type: 'primary' });
+        if (has('production'))
+            connections.push({ from: 'nginx-proxy', to: 'production', label: `Forward → :${prodPort}`, type: 'primary' });
+        if (has('shadow'))
+            connections.push({ from: 'nginx-proxy', to: 'shadow', label: `Mirror → :${shadowPort}`, type: 'mirror' });
+        if (has('ingestion-service'))
+            connections.push({ from: 'nginx-proxy', to: 'ingestion-service', label: 'Capture responses', type: 'async' });
+    }
+    if (has('ingestion-service') && has('kafka'))
+        connections.push({ from: 'ingestion-service', to: 'kafka', label: 'Publish events', type: 'async' });
+    if (has('kafka') && has('comparison-engine'))
+        connections.push({ from: 'kafka', to: 'comparison-engine', label: 'Consume streams', type: 'async' });
+    if (has('comparison-engine') && has('ai-service'))
+        connections.push({ from: 'comparison-engine', to: 'ai-service', label: 'Analyze mismatches', type: 'data' });
+    if (has('comparison-engine') && has('postgres'))
+        connections.push({ from: 'comparison-engine', to: 'postgres', label: 'Store results', type: 'data' });
+    if (has('postgres') && has('dashboard'))
+        connections.push({ from: 'postgres', to: 'dashboard', label: 'Fetch data', type: 'data' });
+    if (has('api-service') && has('postgres'))
+        connections.push({ from: 'api-service', to: 'postgres', label: 'Query DB', type: 'data' });
+    if (has('comparison-engine') && has('redis'))
+        connections.push({ from: 'comparison-engine', to: 'redis', label: 'Cache pairs', type: 'data' });
+
+    return { allNodes, connections };
 }
 
 // ═════════════════════════════════════════════════
@@ -87,9 +146,39 @@ if (topoConfig.services.includes('redis')) {
 export default function TopologyPage() {
     const [hoveredNode, setHoveredNode] = useState<string | null>(null);
     const [hoveredConn, setHoveredConn] = useState<number | null>(null);
+    const [topoData, setTopoData] = useState<any>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     useMouseParallax(containerRef, 3);
 
+    useEffect(() => {
+        const fetchTopology = async () => {
+            try {
+                const data = await getTopology();
+                setTopoData(data);
+            } catch (err: any) {
+                console.error('Failed to fetch topology', err);
+                setError('Could not load live topology. Check if api-service is running.');
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchTopology();
+    }, []);
+
+    if (loading) return <PageSkeleton />;
+
+    if (error || !topoData) {
+        return (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: 16 }}>
+                <div style={{ fontSize: 16, fontWeight: 600 }}>Topology Unavailable</div>
+                <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>{error || 'No data received from API.'}</p>
+            </motion.div>
+        );
+    }
+
+    const { allNodes, connections } = buildTopology(topoData);
     const svgW = 920, svgH = 960;
 
     const legendItems = [
@@ -99,30 +188,32 @@ export default function TopologyPage() {
         { color: lineColors.data, label: 'Data / Query', dash: false },
     ];
 
+    const serviceCount = topoData.services?.length || 0;
+
     return (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
             <PageHeader
                 title="System Topology"
-                description={<>Architecture auto-detected from <code style={{ fontSize: 12, padding: '2px 6px', borderRadius: 4, background: 'rgba(255,255,255,0.06)', fontFamily: 'var(--font-mono)' }}>nginx.conf</code> and <code style={{ fontSize: 12, padding: '2px 6px', borderRadius: 4, background: 'rgba(255,255,255,0.06)', fontFamily: 'var(--font-mono)' }}>docker-compose.yml</code></>}
+                description={<>Live architecture from <code style={{ fontSize: 12, padding: '2px 6px', borderRadius: 4, background: 'rgba(255,255,255,0.06)', fontFamily: 'var(--font-mono)' }}>api-service</code> environment &bull; Auto-refreshes on deploy</>}
             />
 
             {/* Source info banner */}
             <GlassCard style={{ padding: '14px 20px', marginBottom: 16 }}>
                 <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
                     <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                        Detected <strong style={{ color: 'var(--text-primary)' }}>{topoConfig.services.length} services</strong> from your Docker setup
+                        Detected <strong style={{ color: 'var(--text-primary)' }}>{serviceCount} services</strong> from live environment
                     </span>
                     <span style={{ fontSize: 11, color: 'var(--text-muted)', opacity: 0.4 }}>|</span>
                     <span style={{ fontSize: 12, color: '#10b981' }}>
-                        Production <strong>:{topoConfig.prodPort}</strong>
+                        Production <strong>{topoData.prodHost}:{topoData.prodPort}</strong>
                     </span>
                     <span style={{ fontSize: 11, color: 'var(--text-muted)', opacity: 0.4 }}>|</span>
                     <span style={{ fontSize: 12, color: '#f59e0b' }}>
-                        Shadow <strong>:{topoConfig.shadowPort}</strong>
+                        Shadow <strong>{topoData.shadowHost}:{topoData.shadowPort}</strong>
                     </span>
                     <span style={{ fontSize: 11, color: 'var(--text-muted)', opacity: 0.4 }}>|</span>
                     <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                        Proxy <strong>:{topoConfig.proxyPort}</strong>
+                        Mirror <strong>{topoData.mirrorPercentage}%</strong>
                     </span>
                 </div>
             </GlassCard>
@@ -139,16 +230,18 @@ export default function TopologyPage() {
                         <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{l.label}</span>
                     </div>
                 ))}
+                <div style={{ marginLeft: 'auto', display: 'flex', gap: 16 }}>
+                    {Object.entries(healthDot).map(([status, color]) => (
+                        <div key={status} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <div style={{ width: 7, height: 7, borderRadius: '50%', background: color, boxShadow: `0 0 6px ${color}50` }} />
+                            <span style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'capitalize' }}>{status}</span>
+                        </div>
+                    ))}
+                </div>
             </div>
 
             {/* ── 3D SVG Diagram ── */}
-            <div
-                ref={containerRef}
-                style={{
-                    perspective: '1200px',
-                    marginBottom: 20,
-                }}
-            >
+            <div ref={containerRef} style={{ perspective: '1200px', marginBottom: 20 }}>
                 <GlassCard style={{
                     padding: 0, overflow: 'hidden', position: 'relative',
                     transform: 'rotateX(8deg) rotateY(-5deg)',
@@ -265,7 +358,8 @@ export default function TopologyPage() {
                                                 fill="var(--text-muted)" fontFamily="var(--font-family)">:{node.port}</text>
                                         </>
                                     )}
-                                    <circle cx={node.x + 148} cy={node.y + 12} r={4} fill="#10b981" />
+                                    <circle cx={node.x + 148} cy={node.y + 12} r={4}
+                                        fill={healthDot[node.health] || healthDot.unknown} />
                                     {isH && (
                                         <g>
                                             <rect x={node.x} y={node.y + 74} width={160} height={24} rx={6}
@@ -303,11 +397,12 @@ export default function TopologyPage() {
                                 <div style={{ fontSize: 18 }}>{node.icon}</div>
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{node.label}</div>
-                                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1, fontFamily: 'var(--font-mono)' }}>{['prod', 'shadow'].includes(node.id) ? 'host.docker.internal' : node.id === 'client' ? '' : node.label.toLowerCase().replace(/\s+/g, '-')}:{node.port}</div>
+                                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1, fontFamily: 'var(--font-mono)' }}>{node.hostname}:{node.port}</div>
                                 </div>
                                 <div style={{
                                     width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
-                                    background: '#10b981', boxShadow: '0 0 6px rgba(16,185,129,0.5)',
+                                    background: healthDot[node.health] || healthDot.unknown,
+                                    boxShadow: `0 0 6px ${(healthDot[node.health] || healthDot.unknown)}50`,
                                 }} />
                             </GlassCard>
                         </motion.div>
@@ -317,7 +412,7 @@ export default function TopologyPage() {
 
             {/* Source footer */}
             <div style={{ marginTop: 16, fontSize: 11, color: 'var(--text-muted)', opacity: 0.5, textAlign: 'center' }}>
-                Auto-generated from project config &bull; {topoConfig.services.length} services detected &bull; Last extracted: {new Date(topoConfig._generatedAt).toLocaleString()}
+                Auto-generated from live environment &bull; {serviceCount} services detected &bull; Last fetched: {new Date(topoData._generatedAt).toLocaleString()}
             </div>
         </motion.div>
     );
