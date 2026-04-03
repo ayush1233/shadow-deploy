@@ -397,7 +397,7 @@ export default function TopologyPage() {
                                 <div style={{ fontSize: 18 }}>{node.icon}</div>
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{node.label}</div>
-                                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1, fontFamily: 'var(--font-mono)' }}>{node.hostname}:{node.port}</div>
+                                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1, fontFamily: 'var(--font-mono)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{node.hostname}:{node.port}</div>
                                 </div>
                                 <div style={{
                                     width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
