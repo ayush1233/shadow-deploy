@@ -68,19 +68,21 @@ public class ResponseFetcher {
                 reqBuilder.GET(); // default to GET
             }
 
+            long startNanos = System.nanoTime();
             HttpResponse<String> response = httpClient.send(reqBuilder.build(),
                     HttpResponse.BodyHandlers.ofString());
+            long elapsedMs = (System.nanoTime() - startNanos) / 1_000_000;
 
             String body = response.body() != null ? response.body() : "";
-            log.debug("Fetched {} response [endpoint={}, status={}, bodyLen={}]",
-                    label, endpoint, response.statusCode(), body.length());
+            log.debug("Fetched {} response [endpoint={}, status={}, bodyLen={}, elapsed={}ms]",
+                    label, endpoint, response.statusCode(), body.length(), elapsedMs);
 
-            return new FetchResult(body, response.statusCode());
+            return new FetchResult(body, response.statusCode(), elapsedMs);
         } catch (Exception e) {
             log.warn("Failed to fetch {} response [endpoint={}]: ", label, endpoint, e);
             return null;
         }
     }
 
-    public record FetchResult(String body, int statusCode) {}
+    public record FetchResult(String body, int statusCode, long elapsedMs) {}
 }

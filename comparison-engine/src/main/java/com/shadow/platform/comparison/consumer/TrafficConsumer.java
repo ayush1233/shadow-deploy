@@ -118,11 +118,17 @@ public class TrafficConsumer {
                     if (prodData.get("response_status") == null) {
                         prodData.put("response_status", prodResult.statusCode());
                     }
+                    if (prodData.get("response_time_ms") == null) {
+                        prodData.put("response_time_ms", prodResult.elapsedMs());
+                    }
                 }
                 if (shadowResult != null) {
                     shadowData.put("response_body", shadowResult.body());
                     if (shadowData.get("response_status") == null) {
                         shadowData.put("response_status", shadowResult.statusCode());
+                    }
+                    if (shadowData.get("response_time_ms") == null) {
+                        shadowData.put("response_time_ms", shadowResult.elapsedMs());
                     }
                 }
             }
