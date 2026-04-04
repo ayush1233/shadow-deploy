@@ -221,15 +221,31 @@ python cli/generate-traffic.py --count 30
 
 ---
 
+## ☁️ Hybrid Cloud Deployment (AWS Free Tier)
+
+Shadow Deploy is designed to be flexible. If you are constrained by **AWS Free Tier (1GB RAM)**, you can use the **Hybrid Architecture**:
+
+1. **Host the lightweight APIs (Production v1 & Shadow v2)** on the AWS EC2 instance.
+2. **Host the resource-heavy Shadow Deploy Platform** (Kafka, Redis, Spring Boot engines, Dashboard) locally on your machine.
+3. Configure your local NGINX proxy to route traffic seamlessly to the cloud-hosted APIs using remote upstream IP addresses.
+
+*Read the full [AWS Deployment Guide](docs/aws_deployment_guide.md) for step-by-step instructions on setting up this architecture.*
+
+---
+
 ## 📊 Dashboard Features
 
 - **Quick Configure Wizard**: Multi-step guide to set up production/shadow routing using natural language AI.
 - **Interactive Website Testing**: Live path-testing tool to compare any two URLs in real-time.
 - **Advanced Diff Viewer**: High-fidelity JSON diffing using `react-diff-viewer-continued`.
-- **Historical Trends**: 7-day risk vs. pass rate charts powered by `recharts`.
+- **Dynamic Charting**: Responsive, auto-scaling latency charts (switches to horizontal layout for high endpoint counts) powered by `recharts`.
+- **Historical Trends**: 7-day risk vs. pass rate charts.
 - **Actionable Notifications**: Configure Slack, Email, and Webhook thresholds for high-risk deployments.
 - **Reporting**: One-click **PDF** and **CSV** exports for audit trials and stakeholder reports.
 - **Endpoint Tagging**: Organize your API surface with visual metadata (e.g., `Critical`, `Legacy`).
+
+### Zero-Friction Setup
+The Dashboard now features **Auto-Seeded Authentication**. A Spring Boot `CommandLineRunner` automatically provisions the default `admin` user with secure BCrypt hashing on database initialization, and the React login page comes pre-filled so you can start analyzing traffic immediately.
 
 ---
 
