@@ -130,6 +130,7 @@ public class ComparisonController {
             Map<String, Object> map = new LinkedHashMap<>();
             map.put("request_id", entity.getRequestId());
             map.put("endpoint", entity.getEndpoint());
+            map.put("method", entity.getMethod());
             map.put("severity", entity.getSeverity());
             map.put("similarity_score", entity.getSimilarityScore());
             map.put("risk_score", entity.getRiskScore());

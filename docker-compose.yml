@@ -149,7 +149,7 @@ services:
     container_name: shadow-nginx-proxy
     restart: unless-stopped
     ports:
-      - "8080:80"
+      - "80:80"
       - "8443:443"
     environment:
       - PROD_BACKEND_HOST=${PROD_BACKEND_HOST:-host.docker.internal}
