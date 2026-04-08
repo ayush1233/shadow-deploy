@@ -1,0 +1,71 @@
+﻿
+shadow-ingestion-service  | 2026-04-07 
+17:22:40,824 [http-nio-8081-exec-8] INFO  
+c.s.p.i.c.IngestionController - Production 
+Traffic Incoming - x-request-id: 
+5f34f85e04aceecb238e6864bb628e70, Headers: 
+{content-type=application/json, x-request-id=5
+f34f85e04aceecb238e6864bb628e70, 
+x-traffic-type=production, 
+x-internal-secret=shadow-internal-dev-secret, 
+x-original-uri=/api/users, 
+x-original-method=POST, 
+x-response-status=502, 502, 
+x-response-time=0.000, 0.005, 
+host=ingestion-service:8081, 
+connection=close, content-length=0, 
+user-agent=Mozilla/5.0 (Windows NT; Windows 
+NT 10.0; en-IN) 
+WindowsPowerShell/5.1.26100.7920}
+shadow-ingestion-service  | 2026-04-07 
+17:22:40,824 [http-nio-8081-exec-7] INFO  
+c.s.p.i.c.IngestionController - Shadow 
+Traffic Incoming - x-request-id: 
+5f34f85e04aceecb238e6864bb628e70, Headers: 
+{content-type=application/json, x-request-id=5
+f34f85e04aceecb238e6864bb628e70, 
+x-traffic-type=shadow, 
+x-internal-secret=shadow-internal-dev-secret, 
+x-original-uri=/api/users, 
+x-original-method=POST, 
+host=ingestion-service:8081, 
+connection=close, content-length=0, 
+user-agent=Mozilla/5.0 (Windows NT; Windows 
+NT 10.0; en-IN) 
+WindowsPowerShell/5.1.26100.7920}
+shadow-ingestion-service  | 2026-04-07 
+17:36:13,572 [http-nio-8081-exec-8] INFO  
+c.s.p.i.c.IngestionController - Production 
+Traffic Incoming - x-request-id: 
+6f3e2d6522c72eb83f0b5638d27709a4, Headers: 
+{content-type=application/json, x-request-id=6
+f3e2d6522c72eb83f0b5638d27709a4, 
+x-traffic-type=production, 
+x-internal-secret=shadow-internal-dev-secret, 
+x-original-uri=/api/users, 
+x-original-method=POST, 
+x-response-status=502, 502, 
+x-response-time=0.000, 0.006, 
+host=ingestion-service:8081, 
+connection=close, content-length=0, 
+user-agent=Mozilla/5.0 (Windows NT; Windows 
+NT 10.0; en-IN) 
+WindowsPowerShell/5.1.26100.7920}
+shadow-ingestion-service  | 2026-04-07 
+17:36:13,572 [http-nio-8081-exec-7] INFO  
+c.s.p.i.c.IngestionController - Shadow 
+Traffic Incoming - x-request-id: 
+6f3e2d6522c72eb83f0b5638d27709a4, Headers: 
+{content-type=application/json, x-request-id=6
+f3e2d6522c72eb83f0b5638d27709a4, 
+x-traffic-type=shadow, 
+x-internal-secret=shadow-internal-dev-secret, 
+x-original-uri=/api/users, 
+x-original-method=POST, 
+host=ingestion-service:8081, 
+connection=close, content-length=0, 
+user-agent=Mozilla/5.0 (Windows NT; Windows 
+NT 10.0; en-IN) 
+WindowsPowerShell/5.1.26100.7920}
+
+

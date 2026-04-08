@@ -270,7 +270,7 @@ $envContent += "VITE_API_URL=$ViteApiUrl$nl"
 $envContent += "$nl"
 $envContent += "# -- Service Ports (change if conflicts) --------------$nl"
 $envContent += "DASHBOARD_PORT=3004$nl"
-$envContent += "NGINX_PROXY_PORT=8080$nl"
+$envContent += "NGINX_PROXY_PORT=80$nl"
 $envContent += "API_SERVICE_PORT=8083$nl"
 $envContent += "AI_SERVICE_PORT=8005$nl"
 $envContent += "INGESTION_PORT=8081$nl"
@@ -375,7 +375,7 @@ Write-Color "  +======================================+" Green
 Write-Host ""
 Write-Color "  Service URLs:" White
 Write-Host "  Dashboard:          " -NoNewLine; Write-Color "http://localhost:3004" Cyan
-Write-Host "  NGINX Proxy:        " -NoNewLine; Write-Color "http://localhost:8080" Cyan
+Write-Host "  NGINX Proxy:        " -NoNewLine; Write-Color "http://localhost:80" Cyan
 Write-Host "  API Service:        " -NoNewLine; Write-Color "http://localhost:8083" Cyan
 Write-Host "  AI Service:         " -NoNewLine; Write-Color "http://localhost:8005" Cyan
 Write-Host "  Ingestion Service:  " -NoNewLine; Write-Color "http://localhost:8081" Cyan
