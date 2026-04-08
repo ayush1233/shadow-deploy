@@ -61,72 +61,22 @@ export const getTopology = async () => {
 
 // ── Metrics ──
 export const getMetricsSummary = async (days: number = 7) => {
-    // Fetch all comparisons and compute client-side (same logic as before, but from API)
-    const { data: result } = await api.get('/comparisons', { params: { size: 1000 } });
-    const raw = result.data || [];
-
-    // Filter by requested time range
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - days);
-    const cutoffISO = cutoff.toISOString();
-    const all = raw.filter((c: any) => {
-        const ts = c.timestamp || c.created_at;
-        return ts && ts >= cutoffISO;
-    });
-    const total = all.length;
-
-    // Count mismatches (use deterministic_pass if available, else body_match)
-    const mismatches = all.filter((c: any) => c.deterministic_pass === false || c.body_match === false).length;
-    const mismatchRate = total > 0 ? ((mismatches / total) * 100).toFixed(1) : '0.0';
-
-    // Severity breakdown
-    const severity: Record<string, number> = { none: 0, low: 0, medium: 0, high: 0, critical: 0 };
-    all.forEach((c: any) => {
-        const sev = (c.severity || 'none').toLowerCase();
-        if (sev in severity) severity[sev]++;
-    });
-
-    // Top endpoints
-    const endpointMap: Record<string, { requests: number; mismatches: number; avg_prod_latency: number; avg_shadow_latency: number; _prodSum: number; _shadowSum: number }> = {};
-    all.forEach((c: any) => {
-        const ep = c.endpoint || 'unknown';
-        if (!endpointMap[ep]) endpointMap[ep] = { requests: 0, mismatches: 0, avg_prod_latency: 0, avg_shadow_latency: 0, _prodSum: 0, _shadowSum: 0 };
-        endpointMap[ep].requests++;
-        endpointMap[ep]._prodSum += c.prod_response_time_ms || 0;
-        endpointMap[ep]._shadowSum += c.shadow_response_time_ms || 0;
-        if (c.deterministic_pass === false || c.body_match === false) endpointMap[ep].mismatches++;
-    });
-    Object.values(endpointMap).forEach(ep => {
-        ep.avg_prod_latency = ep.requests > 0 ? ep._prodSum / ep.requests : 0;
-        ep.avg_shadow_latency = ep.requests > 0 ? ep._shadowSum / ep.requests : 0;
-    });
-
-    // Latency
-    const deltas = all.map((c: any) => c.latency_delta_ms || 0).sort((a: number, b: number) => a - b);
-    const p50 = deltas.length > 0 ? deltas[Math.floor(deltas.length * 0.5)] : 0;
-    const p95 = deltas.length > 0 ? deltas[Math.floor(deltas.length * 0.95)] : 0;
-    const p99 = deltas.length > 0 ? deltas[Math.floor(deltas.length * 0.99)] : 0;
-
-    const avgRisk = total > 0 ? all.reduce((sum: number, c: any) => sum + Number(c.risk_score || 0), 0) / total : 0;
-
-    return {
-        data: {
-            overview: {
-                total_requests: total,
-                total_comparisons: total,
-                total_mismatches: mismatches,
-                mismatch_rate_percent: mismatchRate,
-                deployment_risk_score: Math.min(avgRisk, 10),
-            },
-            severity_breakdown: severity,
-            top_endpoints: endpointMap,
-            latency: {
-                p50_delta_ms: p50,
-                p95_delta_ms: p95,
-                p99_delta_ms: p99,
-            },
-        },
-    };
+    // Call the dedicated server-side metrics aggregation endpoint
+    const { data } = await api.get('/metrics/summary', { params: { timeRange: `${days}d` } });
+    
+    // Transform formatting slightly to match what UI originally computed
+    if (data.top_endpoints) {
+        const topEndpointObj: Record<string, any> = {};
+        data.top_endpoints.forEach((ep: any) => {
+            topEndpointObj[ep.endpoint] = {
+                requests: ep.total,
+                mismatches: ep.mismatches,
+            };
+        });
+        data.top_endpoints = topEndpointObj;
+    }
+    
+    return { data };
 };
 
 // ── Comparisons ──
