@@ -442,13 +442,27 @@ export const exportOverviewPdf = (data: OverviewExportData, filename: string) =>
         autoTable(doc, {
             ...tableStyles, startY: y,
             head: [['Date', 'Risk Score', 'Pass Rate', 'Total Requests', 'Mismatches']],
-            body: trendData.map(t => [
-                t.date || t.bucket || '',
-                typeof t.risk_score === 'number' ? t.risk_score.toFixed(1) : String(t.risk_score ?? ''),
-                typeof t.pass_rate === 'number' ? `${t.pass_rate.toFixed(1)}%` : String(t.pass_rate ?? ''),
-                String(t.total ?? t.total_requests ?? ''),
-                String(t.mismatches ?? t.total_mismatches ?? ''),
-            ]),
+            body: trendData.map(t => {
+                const risk = t.avg_risk ?? t.risk_score;
+                const riskStr = typeof risk === 'number' ? risk.toFixed(1) : String(risk ?? '');
+                
+                const passRate = t.pass_rate;
+                const passRateStr = typeof passRate === 'number' ? `${passRate.toFixed(1)}%` : (String(passRate).includes('%') ? String(passRate) : (passRate ? `${passRate}%` : ''));
+                
+                let mismatchStr = String(t.mismatches ?? t.total_mismatches ?? '');
+                if (!mismatchStr && t.count !== undefined && t.pass_rate !== undefined) {
+                    const passes = Math.round((parseFloat(String(t.pass_rate)) / 100) * t.count);
+                    mismatchStr = String(t.count - passes);
+                }
+
+                return [
+                    t.date || t.bucket || '',
+                    riskStr,
+                    passRateStr,
+                    String(t.count ?? t.total ?? t.total_requests ?? ''),
+                    mismatchStr,
+                ];
+            }),
             columnStyles: { 0: { fontStyle: 'bold', cellWidth: 40 } },
             didParseCell(data) {
                 if (data.section === 'body') {
