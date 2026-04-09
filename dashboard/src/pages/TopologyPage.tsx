@@ -63,6 +63,10 @@ const layoutPositions: Record<string, { x: number; y: number }> = {
     redis: { x: 40, y: 860 },
 };
 
+const CONNECTION_HIT_STROKE = 14;
+const CONNECTION_BASE_OPACITY = 0.55;
+const CONNECTION_DIM_OPACITY = 0.22;
+
 // ── SVG helpers ──
 const ctr = (n: ServiceNode) => ({ x: n.x + 80, y: n.y + 35 });
 const curve = (a: ServiceNode, b: ServiceNode) => {
@@ -189,6 +193,8 @@ export default function TopologyPage() {
     ];
 
     const serviceCount = topoData.services?.length || 0;
+    const hoveredConnection = hoveredConn !== null ? connections[hoveredConn] ?? null : null;
+    const activeHoveredNode = hoveredConnection ? null : hoveredNode;
 
     return (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
@@ -289,17 +295,28 @@ export default function TopologyPage() {
                             if (!fromN || !toN) return null;
                             const path = curve(fromN, toN);
                             const color = lineColors[conn.type] || '#666';
-                            const isH = hoveredConn === i || hoveredNode === conn.from || hoveredNode === conn.to;
-                            const op = hoveredNode ? (isH ? 1 : 0.12) : hoveredConn === i ? 1 : 0.5;
+                            const isHoveredConnection = hoveredConn === i;
+                            const isNodeRelated = activeHoveredNode === conn.from || activeHoveredNode === conn.to;
+                            const isH = isHoveredConnection || isNodeRelated;
+                            const op = activeHoveredNode ? (isH ? 1 : CONNECTION_DIM_OPACITY) : isHoveredConnection ? 1 : CONNECTION_BASE_OPACITY;
 
                             return (
-                                <g key={`c${i}`} onMouseEnter={() => setHoveredConn(i)} onMouseLeave={() => setHoveredConn(null)}
-                                    style={{ cursor: 'pointer' }} opacity={op}>
+                                <g key={`c${i}`} style={{ cursor: 'pointer' }} opacity={op}>
+                                    <path
+                                        d={path}
+                                        fill="none"
+                                        stroke="transparent"
+                                        strokeWidth={CONNECTION_HIT_STROKE}
+                                        pointerEvents="stroke"
+                                        onMouseEnter={() => setHoveredConn(i)}
+                                        onMouseLeave={() => setHoveredConn(null)}
+                                    />
                                     <path d={path} fill="none" stroke={color} strokeWidth={isH ? 3 : 2}
                                         strokeDasharray={conn.type === 'mirror' ? '8,4' : conn.type === 'async' ? '4,4' : 'none'}
+                                        strokeLinecap="round"
                                         markerEnd={`url(#m${i})`} filter={isH ? 'url(#glow)' : undefined}
                                         style={{ transition: 'all 0.3s ease' }} />
-                                    <circle r={isH ? 5 : 3.5} fill={color} filter="url(#glow)">
+                                    <circle r={isH ? 5 : 3.5} fill={color} filter="url(#glow)" pointerEvents="none">
                                         <animateMotion dur={conn.type === 'mirror' ? '2.5s' : '2s'} repeatCount="indefinite" path={path} />
                                     </circle>
                                     {isH && (() => {
@@ -311,7 +328,7 @@ export default function TopologyPage() {
                                         const lx = mx + (perpX / len) * off;
                                         const ly = my + (perpY / len) * off - 4;
                                         return (
-                                            <g>
+                                            <g pointerEvents="none">
                                                 <rect x={lx - conn.label.length * 3.5 - 8} y={ly - 11}
                                                     width={conn.label.length * 7 + 16} height={24} rx={6}
                                                     fill="rgba(0,0,0,0.95)" stroke={color} strokeWidth={1} />
@@ -328,10 +345,10 @@ export default function TopologyPage() {
                         {allNodes.map(node => {
                             const s = nodeStyles[node.type] || fallback;
                             const isH = hoveredNode === node.id;
-                            const isRel = hoveredNode
-                                ? connections.some(c => (c.from === hoveredNode && c.to === node.id) || (c.to === hoveredNode && c.from === node.id))
+                            const isRel = activeHoveredNode
+                                ? connections.some(c => (c.from === activeHoveredNode && c.to === node.id) || (c.to === activeHoveredNode && c.from === node.id))
                                 : false;
-                            const dim = hoveredNode && hoveredNode !== node.id && !isRel;
+                            const dim = activeHoveredNode && activeHoveredNode !== node.id && !isRel;
 
                             return (
                                 <g key={node.id}
@@ -389,7 +406,7 @@ export default function TopologyPage() {
                         >
                             <GlassCard style={{
                                 padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10,
-                                opacity: hoveredNode ? (isH ? 1 : 0.35) : 1, transition: 'all 0.3s ease',
+                                opacity: activeHoveredNode ? (isH ? 1 : 0.35) : 1, transition: 'all 0.3s ease',
                                 transform: isH ? 'scale(1.03)' : 'scale(1)',
                                 borderColor: isH ? s.border : undefined, boxShadow: isH ? s.glow : undefined, cursor: 'pointer',
                             }}
