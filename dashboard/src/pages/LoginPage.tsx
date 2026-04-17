@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { login } from '../services/api';
@@ -10,7 +10,7 @@ export default function LoginPage() {
     const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');
     const [errorMsg, setErrorMsg] = useState('');
 
-    const handleLogin = async (e: React.FormEvent) => {
+    const handleLogin = async (e: FormEvent) => {
         e.preventDefault();
         setStatus('loading');
         setErrorMsg('');
