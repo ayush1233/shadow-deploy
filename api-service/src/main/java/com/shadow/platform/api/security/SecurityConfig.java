@@ -14,7 +14,10 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Configuration
 @EnableWebSecurity
@@ -55,13 +58,16 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
         
-        // Trim spaces and filter out empty strings
-        List<String> origins = Arrays.stream(corsAllowedOrigins.split(","))
+        Set<String> origins = Arrays.stream(corsAllowedOrigins.split(","))
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
-                .collect(Collectors.toList());
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        origins.add("http://13.232.169.65:3004");
+        origins.add("http://13.232.169.65");
+        origins.add("http://localhost:3004");
+        origins.add("http://localhost:3000");
         
-        config.setAllowedOriginPatterns(origins);
+        config.setAllowedOriginPatterns(List.copyOf(origins));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
