@@ -1,0 +1,19 @@
+---
+source_file: "cli\shadowctl.py"
+type: "code"
+community: "Community 13"
+location: "L187"
+tags:
+  - graphify/code
+  - graphify/EXTRACTED
+  - community/Community_13
+---
+
+# cmd_health()
+
+## Connections
+- [[c()]] - `calls` [EXTRACTED]
+- [[check_service()]] - `calls` [EXTRACTED]
+- [[shadowctl.py]] - `contains` [EXTRACTED]
+
+#graphify/code #graphify/EXTRACTED #community/Community_13

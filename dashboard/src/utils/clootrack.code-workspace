@@ -1,0 +1,16 @@
+{
+	"folders": [
+		{
+			"path": "../../../../clootrack"
+		},
+		{
+			"path": "../../.."
+		},
+		{
+			"path": "../../../../v2-ticket-ai"
+		}
+	],
+	"settings": {
+		"java.compile.nullAnalysis.mode": "automatic"
+	}
+}

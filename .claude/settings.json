@@ -31,5 +31,8 @@
     "additionalDirectories": [
       "\\tmp"
     ]
+  },
+  "enabledPlugins": {
+    "context-mode@context-mode": true
   }
 }
